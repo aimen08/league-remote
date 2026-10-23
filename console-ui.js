@@ -50,10 +50,20 @@ function createConsoleUI() {
   process.stdout.on('resize', () => { last = ''; draw(); });
 
   function statusLines() {
-    const { urls, key, league, phone, settings } = info;
+    const { urls, key, league, phone, settings, version, update = {} } = info;
     const dot = (ok, warn) => ok ? `${c.green}●${c.reset}` : warn ? `${c.yellow}●${c.reset}` : `${c.red}●${c.reset}`;
+    const updateText = {
+      checking: 'checking for updates…',
+      latest: 'up to date',
+      available: `${c.yellow}version ${update.version} available on GitHub${c.reset}`,
+      downloading: `${c.yellow}downloading update ${update.version}…${c.reset}`,
+      ready: `${c.yellow}update ${update.version} installs when you're not in queue or champ select${c.reset}`,
+      installing: `${c.yellow}starting ${update.version}…${c.reset}`,
+      failed: 'update check failed — will retry later',
+      off: 'updates off',
+    }[update.status] || '';
     const lines = [
-      `${c.bold}${c.gold}LEAGUE REMOTE${c.reset}`,
+      `${c.bold}${c.gold}LEAGUE REMOTE${c.reset} ${c.dim}v${version}${updateText ? ` · ${updateText}` : ''}${c.reset}`,
       '',
       `League   ${dot(league.connected)} ${league.connected
         ? `${c.bold}Connected${c.reset}${league.summoner ? ` · ${league.summoner}` : ''}`

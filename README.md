@@ -26,7 +26,17 @@
 
 Keep the window open while you play. It shows a green dot when League is connected and another when your phone is connected.
 
-Opening League Remote again closes the old window and takes its place, so your phone stays paired. If a different program already uses port 3000, League Remote leaves that program alone, moves to the next free port, and shows a new QR code to scan.
+**You only scan once.** Your pairing is saved on the PC, and the phone reconnects by itself whenever League Remote restarts or updates. Opening League Remote again closes the old window and takes its place. If a different program already uses port 3000, League Remote leaves that program alone, moves to the next free port, and shows a new QR code to scan.
+
+### Automatic updates
+
+League Remote checks GitHub for a new version when it starts and every 6 hours after that. When there is one, it:
+
+1. downloads it in the background and checks its **SHA-256 checksum** against GitHub's (a damaged or tampered download is deleted, never installed),
+2. **waits until you're not in queue, at match found, or in champ select**, because restarting must never cost you a queue pop or a pick,
+3. swaps the exe and restarts. The new version takes over, your phone reconnects and reloads by itself, and no rescan is needed.
+
+If anything goes wrong, it keeps running the version you have and tries again later. To turn updates off, set the `LEAGUE_REMOTE_NO_UPDATE=1` environment variable. *(Coming from v1.0 or v1.1? Download v1.2 once by hand. Updates are automatic from then on.)*
 
 ## What you can do from your phone
 
@@ -82,6 +92,8 @@ npm run icons      # re-render the icons from assets/icon.svg (outputs are commi
 |---|---|
 | `PORT` | `3000` (the next free port is used if another program has it) |
 | `LEAGUE_DIR` | `C:\Riot Games\League of Legends` (only used if the client runs as admin) |
+| `LEAGUE_REMOTE_DATA` | `%APPDATA%\LeagueRemote`: pairing code, settings, debug log (shared by the exe and `npm start`) |
+| `LEAGUE_REMOTE_NO_UPDATE` | unset (set to `1` to turn off update checks) |
 
 ## License
 

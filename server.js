@@ -1,5 +1,5 @@
 // League Remote — a bridge between the League client (LCU API) on this PC and your phone.
-// Zero dependencies: run `node server.js`, then open the printed URL on your phone (same Wi-Fi).
+// Run `node server.js` (or LeagueRemote.exe), then scan the QR code with your phone (same Wi-Fi).
 'use strict';
 const http = require('http');
 const https = require('https');
@@ -7,18 +7,28 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
-const { execFile, exec } = require('child_process');
+const { execFile, exec, spawn } = require('child_process');
 const QRCode = require('qrcode');
 const { createConsoleUI } = require('./console-ui');
+const updater = require('./updater');
+const { version: VERSION } = require('./package.json');
 
-// When packaged as LeagueRemote.exe the phone app is embedded and settings live in AppData.
+// When packaged as LeagueRemote.exe the phone app is embedded in the exe.
 let sea = null;
 try { sea = require('node:sea'); if (!sea.isSea()) sea = null; } catch { sea = null; }
 
 let port = Number(process.env.PORT) || 3000; // may move to the next free port at startup
-const DATA_DIR = sea ? path.join(process.env.APPDATA || os.homedir(), 'LeagueRemote') : __dirname;
+// One settings folder for the exe and for `node server.js`, so switching never re-pairs the phone.
+const DATA_DIR = process.env.LEAGUE_REMOTE_DATA || (process.platform === 'win32'
+  ? path.join(process.env.APPDATA || os.homedir(), 'LeagueRemote')
+  : path.join(os.homedir(), '.league-remote'));
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const CONFIG_PATH = path.join(DATA_DIR, 'config.json');
+const INSTANCE_PATH = path.join(DATA_DIR, 'instance.json');
+// Versions before 1.2 kept the source version's settings next to server.js: carry them over.
+if (!sea && !fs.existsSync(CONFIG_PATH) && fs.existsSync(path.join(__dirname, 'config.json'))) {
+  try { fs.copyFileSync(path.join(__dirname, 'config.json'), CONFIG_PATH); } catch {}
+}
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const readPublic = file => sea ? Buffer.from(sea.getAsset(file)) : fs.readFileSync(path.join(PUBLIC_DIR, file));
 
@@ -38,7 +48,7 @@ const LOCKFILE_PATHS = [
   '/Applications/League of Legends.app/Contents/LoL/lockfile',
 ].filter(Boolean);
 
-// ---------- config (pairing key + toggles), persisted next to this file ----------
+// ---------- config (pairing key + toggles), persisted in DATA_DIR ----------
 function randomKey() {
   const abc = 'abcdefghjkmnpqrstuvwxyz23456789';
   return Array.from(crypto.randomBytes(6), b => abc[b % abc.length]).join('');
@@ -394,7 +404,7 @@ const ROLES = new Set(['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY', 'FILL', '
 const api = {
   'GET /api/state': () => {
     const now = Date.now();
-    const s = { ...state, stateAgeMs: now - stateAt, serverTime: now };
+    const s = { ...state, version: VERSION, stateAgeMs: now - stateAt, serverTime: now };
     if (s.champSelect) s.champSelect = { ...s.champSelect, timeLeftMs: Math.max(0, s.champSelect.deadline - now) };
     return s;
   },
@@ -566,6 +576,8 @@ function portOwner(p) {
 
 async function start() {
   const wanted = port;
+  // The window recorded as running (possibly on another port, or an older version after an update).
+  await closeRecordedInstance();
   try { return await listenOn(port); } catch (e) { if (e.code !== 'EADDRINUSE') throw e; }
 
   if (await isLeagueRemoteOn(port)) {
@@ -600,13 +612,116 @@ async function start() {
   throw new Error(`Ports ${wanted}–${wanted + 20} are all in use.`);
 }
 
+// Closes the League Remote recorded in instance.json, after checking that the recorded process
+// really is League Remote (Windows reuses process ids).
+async function closeRecordedInstance() {
+  let rec;
+  try { rec = JSON.parse(fs.readFileSync(INSTANCE_PATH, 'utf8')); } catch { return; }
+  if (!rec?.pid || rec.pid === process.pid) return;
+  try { process.kill(rec.pid, 0); } catch { return; } // not running any more
+  if (!(await isLeagueRemoteOn(rec.port))) return;
+  if ((await portOwner(rec.port))?.pid !== rec.pid) return;
+  try { process.kill(rec.pid); } catch { return; }
+  for (let i = 0; i < 40; i++) {
+    await sleep(250);
+    try { process.kill(rec.pid, 0); } catch {
+      console.log(rec.version && rec.version !== VERSION
+        ? `Closed League Remote ${rec.version} and took over.`
+        : 'Closed the other League Remote window and took over.');
+      return;
+    }
+  }
+}
+
+function recordInstance() {
+  try { fs.writeFileSync(INSTANCE_PATH, JSON.stringify({ pid: process.pid, port, version: VERSION })); } catch {}
+  process.on('exit', () => {
+    try { if (JSON.parse(fs.readFileSync(INSTANCE_PATH, 'utf8')).pid === process.pid) fs.rmSync(INSTANCE_PATH); } catch {}
+  });
+}
+
+// ---------- self-update (the exe only) ----------
+const UPDATE_EVERY_MS = 6 * 60 * 60 * 1000;
+// Restarting takes a few seconds, so never do it while a queue pop or champ select could be missed.
+const SAFE_TO_RESTART = new Set(['None', 'Lobby', 'GameStart', 'InProgress', 'Reconnect', 'PreEndOfGame', 'WaitingForStats', 'EndOfGame']);
+let update = { status: process.env.LEAGUE_REMOTE_NO_UPDATE ? 'off' : 'checking' };
+let updateBusy = false;
+
+async function checkForUpdates() {
+  if (updateBusy || update.status === 'off' || update.status === 'ready' || update.status === 'installing') return;
+  updateBusy = true;
+  try {
+    const info = await updater.checkForUpdate(VERSION);
+    if (!info) { update = { status: 'latest' }; return; }
+    if (!sea) {
+      if (update.version !== info.version) console.log(`Version ${info.version} is available — download it from GitHub.`);
+      update = { status: 'available', version: info.version };
+      return;
+    }
+    update = { status: 'downloading', version: info.version };
+    console.log(`Downloading update ${info.version}…`);
+    const staged = await updater.downloadUpdate(info, process.execPath);
+    update = { status: 'ready', version: info.version, staged };
+    console.log(`Update ${info.version} downloaded and verified.`);
+    installWhenSafe();
+  } catch (e) {
+    update = { status: 'failed' };
+    console.log(`Update check failed: ${e.message}`);
+  } finally {
+    updateBusy = false;
+  }
+}
+
+function installWhenSafe() {
+  let told = false;
+  const timer = setInterval(() => {
+    if (state.connected && !SAFE_TO_RESTART.has(state.phase)) {
+      if (!told) { told = true; console.log('Update will install after this queue / champ select.'); }
+      return;
+    }
+    clearInterval(timer);
+    installUpdate();
+  }, 2000);
+}
+
+function installUpdate() {
+  const exe = process.execPath;
+  try {
+    updater.applyUpdate(update.staged, exe);
+  } catch (e) {
+    update = { status: 'failed' };
+    return console.log(`Update could not be installed (${e.message}) — keeping ${VERSION}.`);
+  }
+  update = { ...update, status: 'installing' };
+  console.log(`Starting League Remote ${update.version}…`);
+  // The new version takes over from this one (see closeRecordedInstance). This one keeps
+  // serving until then, and puts the old exe back if the new one never shows up.
+  spawn('cmd.exe', ['/d', '/s', '/c', `start "" "${exe}"`], { windowsVerbatimArguments: true, detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  const target = update.version;
+  setTimeout(() => {
+    try {
+      fs.renameSync(exe, exe + '.failed');
+      fs.renameSync(exe + '.old', exe);
+      fs.rmSync(exe + '.failed', { force: true });
+    } catch {}
+    update = { status: 'failed' };
+    console.log(`Update ${target} did not start — still running ${VERSION}.`);
+  }, 60000).unref();
+}
+
 start().then(onListening).catch(e => fatal(e.message));
 
 function onListening() {
+  recordInstance();
+  if (sea) updater.cleanupOld(process.execPath);
+  setTimeout(checkForUpdates, 5000);
+  setInterval(checkForUpdates, UPDATE_EVERY_MS).unref();
   if (ui) {
     const tick = () => ui.update({
       urls: lanUrls(),
       key: config.key,
+      version: VERSION,
+      update,
       league: { connected: !!state.connected, phase: state.phase, summoner: state.summoner },
       phone: { connected: Date.now() - phone.lastSeen < 6000, ever: !!phone.ip, ip: phone.ip },
       settings: { autoAccept: config.autoAccept, autoLock: config.autoLock },
