@@ -202,6 +202,7 @@ http.createServer((req, res) => {
       return json(res, 201, pg);
     }
     if ((match = /^\/lol-perks\/v1\/recommended-pages\/champion\/(\d+)\/position\/(\w+)\/map\/(\d+)$/.exec(p))) return json(res, 200, recommended());
+    if (route === 'GET /lol-perks/v1/inventory') return json(res, 200, { ownedPageCount: maxEditablePages });
     if (route === 'POST /mock/max-pages') { maxEditablePages = body.n; return json(res, 204); } // test hook
 
     if (route === 'POST /lol-lobby/v2/lobby') { phase = 'Lobby'; lobbyQueue = body.queueId; return json(res, 200, {}); }

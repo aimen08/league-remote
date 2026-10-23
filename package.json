@@ -1,6 +1,6 @@
 {
   "name": "league-remote",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "description": "Accept League of Legends queue pops and pick/lock champions from your phone.",
   "private": true,
   "scripts": {

@@ -110,13 +110,14 @@
   .role-row + .role-row { margin-top: 18px; }
   .role-lbl { margin-bottom: 12px; }
   .role-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  .queues { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+  .queues { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
   .role-btns button, .queues button { border: 1px solid var(--tile-line); border-radius: 6px; background: linear-gradient(180deg, rgba(17, 33, 47, .92), rgba(7, 16, 25, .92)); color: var(--text); }
   .role-btns button { height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; font: 400 15px/1 var(--body); }
   .role-btns button:disabled { opacity: .4; }
   .role-btns button svg.i { width: 30px; height: 30px; }
   .role-btns button.on { color: #fff; border: 1.5px solid #f0dc9c; background: radial-gradient(ellipse at 50% 55%, #083b43 0%, #0a4f57 55%, #0f7c82 100%); box-shadow: 0 0 12px rgba(232, 210, 154, .35), 0 0 18px rgba(18, 201, 187, .35), inset 0 0 16px rgba(60, 230, 215, .35); }
-  .queues button { height: 50px; display: flex; align-items: center; gap: 10px; padding: 0 12px; text-align: left; font: 400 14px/1.15 var(--body); white-space: nowrap; }
+  .queues button { height: 50px; display: flex; align-items: center; gap: 10px; padding: 0 12px; text-align: left; font: 400 14px/1.15 var(--body); white-space: normal; line-height: 1.1; }
+  .queues button span { min-width: 0; }
   .queues button svg.i { width: 26px; height: 26px; }
   .queues button.on { color: #fff; border: 1.5px solid #e8d29a; box-shadow: 0 0 12px rgba(232, 210, 154, .25), inset 0 0 10px rgba(232, 210, 154, .08); }
   #find-btn { margin-top: 26px; }
@@ -410,6 +411,7 @@
     <p id="version" style="color:var(--muted);font-size:13px;text-align:center;margin:14px 0 0"></p>
     <button class="btn ghost" id="unpair-btn">Unpair this phone</button>
     <button class="btn primary" id="close-sheet">Done</button>
+    <p style="color:var(--muted);font-size:11px;line-height:1.4;text-align:center;margin:14px 0 0">League Remote isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.</p>
   </div>
 </div>
 
@@ -438,25 +440,31 @@ if (fromHash) { key = fromHash; store.set('lr-key', key); history.replaceState(n
 async function api(method, path, body, timeoutMs = 4000) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  let r;
+  let r, text;
   try {
     r = await fetch(path, {
       method, signal: ctrl.signal,
       headers: { 'X-Key': key, ...(body ? { 'Content-Type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     });
+    text = await r.text();
   } catch (e) {
     throw Object.assign(new Error('No answer from your PC'), { status: 0, noAnswer: true });
   } finally {
     clearTimeout(timer);
   }
-  const data = await r.json().catch(() => ({}));
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch {}
   if (!r.ok) throw Object.assign(new Error(data.error || `Error ${r.status}`), { status: r.status, data });
   return data;
 }
+const inFlight = new Set();
 async function act(path, body, okMsg) {
+  if (inFlight.has(path)) return;
+  inFlight.add(path);
   try { await api('POST', path, body); if (okMsg) toast(okMsg, true); poll(true); }
   catch (e) { toast(e.message); }
+  finally { inFlight.delete(path); }
 }
 
 let toastTimer;
@@ -468,13 +476,21 @@ function toast(msg, ok) {
 
 // ---------- sound + vibration alerts ----------
 let audio;
-addEventListener('pointerdown', () => {
-  audio ||= new (window.AudioContext || window.webkitAudioContext)();
-  audio.resume();
-  $('#sound-hint').classList.add('hidden');
-});
+addEventListener('click', e => { if (Date.now() - viewChangedAt < 450) { e.stopPropagation(); e.preventDefault(); } }, true);
+function unlockAudio() {
+  try {
+    audio ||= new (window.AudioContext || window.webkitAudioContext)();
+    // a silent sound started inside the tap is what unlocks audio on iPhones
+    const src = audio.createBufferSource(); src.buffer = audio.createBuffer(1, 1, 22050); src.connect(audio.destination); src.start(0);
+    audio.resume().then(() => { if (audio.state === 'running') $('#sound-hint').classList.add('hidden'); }).catch(() => {});
+  } catch {}
+}
+addEventListener('pointerup', unlockAudio);
+addEventListener('click', unlockAudio);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) audio?.resume().catch(() => {}); });
 function alertUser(pattern = [300, 120, 300]) {
   navigator.vibrate?.(pattern);
+  audio?.resume().catch(() => {});
   if (!audio) return;
   pattern.forEach((_, i) => {
     if (i % 2) return;
@@ -490,6 +506,7 @@ let champions = [], byId = new Map();
 let favs = new Set((() => { try { return JSON.parse(store.get('lr-favs') || '[]'); } catch { return []; } })());
 let selected = 0;      // what the phone shows as chosen
 let pendingHover = 0;  // a hover sent to the client but not confirmed yet
+let lockedTurn = 0;    // the turn the PC confirmed as locked
 let locking = false;
 const iconUrl = id => `/icon/${id}`;
 const norm = s => s.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '');
@@ -572,7 +589,7 @@ async function choose(id) {
   try {
     await api('POST', '/api/hover', { championId: id, actionId: t.id }, 6000);
   } catch (e) {
-    toast(e.noAnswer ? 'No answer from your PC — hover may not have gone through' : e.message);
+    if (pendingHover === id) toast(e.noAnswer ? 'No answer from your PC — hover may not have gone through' : e.message);
     if (selected === id) selected = state?.champSelect?.turn?.championId || 0;
   } finally {
     if (pendingHover === id) pendingHover = 0;
@@ -597,6 +614,7 @@ $('#lock-btn').onclick = async () => {
   locking = true; paintDock();
   try {
     const r = await api('POST', '/api/lock', { championId: selected, actionId: t.id }, 10000);
+    lockedTurn = t.id;
     toast(`${ban ? 'Banned' : 'Locked in'}: ${byId.get(r.championId)?.name || ''} ✓`, true);
   } catch (e) {
     toast(e.noAnswer ? 'No answer from your PC — look at the screen to see if it locked' : e.message);
@@ -620,7 +638,7 @@ function paintDock() {
   const btn = $('#lock-btn');
   btn.textContent = locking ? (ban ? 'Banning…' : 'Locking…') : ban ? 'Ban' : 'Lock in';
   btn.className = 'btn ' + (ban ? 'ban' : 'primary');
-  btn.disabled = locking || !(t?.active && selected);
+  btn.disabled = locking || t?.id === lockedTurn || !(t?.active && selected);
   $('#dock-hint').textContent =
     !t ? '' :
     locking ? 'Waiting for the client to confirm…' :
@@ -634,14 +652,19 @@ function paintDock() {
 // ---------- state + rendering ----------
 let state = null, stateAt = 0, lastPhase = '', lastTurnKey = '', lastServerChamp = 0;
 
+let viewChangedAt = 0;
 function show(view) {
+  if (document.body.dataset.view !== view) viewChangedAt = Date.now();
   for (const v of VIEWS) $('#v-' + v).classList.toggle('hidden', v !== view);
   document.body.dataset.view = view;
   $('#dock').classList.toggle('hidden', !(view === 'champ' && state?.champSelect?.turn));
 }
 
+let queuesKey = null;
 function renderQueues() {
   const current = state?.lobby?.queueId;
+  if (queuesKey === current) return;
+  queuesKey = current;
   for (const box of document.querySelectorAll('[data-queues]')) {
     box.innerHTML = '';
     for (const [id, name] of QUEUES) {
@@ -671,10 +694,12 @@ const ICONS = {
 let iconSeq = 0;
 const icon = k => { const s = ICONS[k]; if (!s) return ''; const n = ++iconSeq; return s.replace(/id="([^"]+)"/g, `id="$1-${n}"`).replace(/url\(#([^)]+)\)/g, `url(#$1-${n})`); };
 function labelled(b, iconKey, text) { b.innerHTML = icon(iconKey) + '<span></span>'; b.lastChild.textContent = text; }
+let roleTap = null; // roles just sent, until a poll shows them
 const ROLES = [['TOP', 'Top'], ['JUNGLE', 'Jungle'], ['MIDDLE', 'Mid'], ['BOTTOM', 'Bot'], ['UTILITY', 'Support'], ['FILL', 'Fill']];
 function renderRoles(l) {
   const box = $('#roles');
   box.classList.toggle('hidden', !l.showRoles);
+  if (roleTap && roleTap.first === l.firstRole && roleTap.second === l.secondRole) roleTap = null;
   const key = `${l.showRoles}/${l.firstRole}/${l.secondRole}`;
   if (!l.showRoles || box.dataset.key === key) return;
   box.dataset.key = key;
@@ -690,10 +715,12 @@ function renderRoles(l) {
       if (slot === 'second' && id === l.firstRole) b.disabled = true;
       b.classList.toggle('on', id === (slot === 'first' ? l.firstRole : l.secondRole));
       b.onclick = () => {
-        let first = l.firstRole, second = l.secondRole;
+        const base = roleTap && Date.now() - roleTap.at < 4000 ? roleTap : { first: l.firstRole, second: l.secondRole };
+        let first = base.first, second = base.second;
         if (slot === 'first') { first = id; if (id === 'FILL' || second === id) second = 'UNSELECTED'; }
         else second = id;
-        act('/api/roles', { first, second });
+        roleTap = { first, second, at: Date.now() };
+        api('POST', '/api/roles', { first, second }).then(() => poll(true)).catch(e => { roleTap = null; toast(e.message); });
       };
       row.lastElementChild.append(b);
     }
@@ -717,7 +744,7 @@ function render() {
   $('#sw-accept').classList.toggle('on', !!s?.autoAccept);
   $('#version').textContent = s?.version ? `League Remote v${s.version}` : '';
 
-  if (!s.connected) { lastPhase = ''; return show('noclient'); }
+  if (!s.connected) { lastPhase = ''; closeLoadout(); return show('noclient'); }
   const phase = s.phase;
   if (phase !== lastPhase) {
     if (phase === 'ReadyCheck') alertUser([400, 150, 400, 150, 400]);
@@ -864,7 +891,7 @@ async function poll() {
     render();
   } catch (e) {
     if (seq < shownSeq) return;
-    if (e.status === 401) { key = ''; store.del('lr-key'); show('pair'); }
+    if (e.status === 401) { key = ''; store.del('lr-key'); state = null; show('pair'); toast('Wrong pairing code — scan the QR code again'); }
     else if (!state || Date.now() - lastOkAt > 10000) show('offline');
   } finally {
     paintConnection();
@@ -1069,7 +1096,7 @@ $('#settings-btn').onclick = () => $('#sheet').classList.remove('hidden');
 $('#close-sheet').onclick = () => $('#sheet').classList.add('hidden');
 $('#sheet').onclick = e => { if (e.target.id === 'sheet') $('#sheet').classList.add('hidden'); };
 $('#sw-accept').onclick = () => act('/api/settings', { autoAccept: !state?.autoAccept });
-$('#unpair-btn').onclick = () => { key = ''; store.del('lr-key'); $('#sheet').classList.add('hidden'); show('pair'); };
+$('#unpair-btn').onclick = () => { key = ''; store.del('lr-key'); state = null; $('#sheet').classList.add('hidden'); show('pair'); };
 $('#pair').onsubmit = e => {
   e.preventDefault();
   key = $('#pair-code').value.trim().toLowerCase();

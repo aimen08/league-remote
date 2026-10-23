@@ -138,6 +138,8 @@ function lcu(method, urlPath, body, { asset = false } = {}) {
       const chunks = [];
       res.on('data', c => chunks.push(c));
       res.on('end', () => resolve({ status: res.statusCode, type: res.headers['content-type'], buf: Buffer.concat(chunks) }));
+      res.on('error', reject);
+      res.on('close', () => { if (!res.complete) reject(new Error('League client closed the connection')); });
     });
     req.on('error', reject);
     req.setTimeout(5000, () => req.destroy(new Error('League client timed out')));
@@ -227,8 +229,16 @@ async function turnFor(actionId) {
 // Bans get no list: any champion can be banned, owned or not (the client's bannable list can be
 // limited to owned champions), so only banned and picked champions are greyed out.
 const listSources = {};
-async function availableFor(type) {
+const availableCache = { key: '', at: 0, list: null };
+async function availableFor(type, actionId) {
   if (type === 'ban') return null;
+  const key = `${type}:${actionId}`;
+  if (availableCache.key === key && Date.now() - availableCache.at < 3000) return availableCache.list;
+  const list = await fetchAvailable(type);
+  Object.assign(availableCache, { key, at: Date.now(), list });
+  return list;
+}
+async function fetchAvailable(type) {
   const paths = ['/lol-champ-select/v1/pickable-champion-ids', '/lol-lobby-team-builder/champ-select/v1/pickable-champion-ids'];
   let list = null, source = 'none (everything tappable)';
   for (const p of paths) {
@@ -294,10 +304,20 @@ function lockIn(championId, actionId) {
   lockQueue = run.catch(() => {});
   return run;
 }
+let hoverSeq = 0;
+function queueHover(championId, actionId) {
+  const mine = ++hoverSeq;
+  const run = lockQueue.then(() => (mine === hoverSeq ? hover(championId, actionId) : { superseded: true }));
+  lockQueue = run.catch(() => {});
+  return run;
+}
 
 async function doLockIn(championId, actionId) {
   const { turn, alreadyDone } = await turnFor(actionId);
-  if (alreadyDone) return { championId: alreadyDone.championId, type: alreadyDone.type };
+  if (alreadyDone) {
+    if (alreadyDone.championId && alreadyDone.championId === championId) return { championId, type: alreadyDone.type };
+    throw Object.assign(new Error(alreadyDone.championId ? 'That turn already ended with a different champion' : 'That turn already ended — nothing was locked'), { status: 409 });
+  }
   if (!turn.active) throw Object.assign(new Error("It's not your turn yet"), { status: 409 });
   championId ||= turn.championId;
   if (!championId) throw Object.assign(new Error('Pick a champion first'), { status: 400 });
@@ -310,9 +330,14 @@ async function doLockIn(championId, actionId) {
   ];
   let lastError = null;
   for (const [name, run] of attempts) {
-    try { await run(); } catch (e) { lastError = e; await logFailure(`lock ${turn.type} (${name})`, e); }
-    const after = await actionState(turn.id);
-    if (after?.completed) return { championId: after.championId, type: turn.type };
+    let ok = true;
+    try { await run(); } catch (e) { ok = false; lastError = e; await logFailure(`lock ${turn.type} (${name})`, e); }
+    // The client can take over a second to show a lock it accepted.
+    for (const end = Date.now() + (ok ? 1500 : 500); ;) {
+      const after = await actionState(turn.id);
+      if (after?.completed) return { championId: after.championId, type: turn.type };
+      if (Date.now() > end) break;
+    }
   }
   throw Object.assign(new Error(lastError ? `NOT locked — client said: ${lastError.message}` : 'NOT locked — the client did not accept it'), { status: 502 });
 }
@@ -452,6 +477,10 @@ async function applyRecommended(index, overwritePageId) {
       } catch (e) {
         const editable = pages.filter(p => p.isEditable);
         if (!editable.length) throw e;
+        // Never offer to overwrite one of the player's pages for some other error.
+        const inv = await tryJson('/lol-perks/v1/inventory');
+        const full = typeof inv?.ownedPageCount === 'number' ? editable.length >= inv.ownedPageCount : /max|limit|full|slot/i.test(e.message);
+        if (!full) throw e;
         const current = await tryJson('/lol-perks/v1/currentpage');
         const suggest = editable.find(p => p.id === current?.id) || editable[0];
         throw Object.assign(new Error(`All rune page slots are full. Replace "${suggest.name}"?`),
@@ -479,21 +508,26 @@ let summoner = null;
 let champions = null;
 let iconCache = new Map();
 let clientAnswered = false;
+let missedAnswers = 0, missedScans = 0;
 
 async function refresh() {
   const seq = ++refreshSeq;
   const setState = s => applyState(s, seq);
   if (!client) {
     client = await findClient();
-    if (!client) { setState({ connected: false }); return; }
+    if (!client) { missedScans++; setState({ connected: false }); return; }
+    missedScans = 0; missedAnswers = 0;
     summoner = null; champions = null; gameData = null; iconCache = new Map();
   }
 
   let phase;
   try {
     phase = await lcuJson('GET', '/lol-gameflow/v1/gameflow-phase');
+    missedAnswers = 0;
   } catch (e) {
-    // No answer, or the wrong password (a stale lockfile): we are not connected.
+    // Refused, the wrong password (a stale lockfile) or several missed answers in a row: not connected.
+    // A single slow answer keeps the last state; the phone marks it as out of date after 2.5 s.
+    if (!e.status && e.code !== 'ECONNREFUSED' && ++missedAnswers < 3) return;
     if (!e.status || e.status === 401 || e.status === 403) {
       if (clientAnswered) console.log('League client closed.');
       clientAnswered = false;
@@ -543,7 +577,7 @@ async function refresh() {
     const sess = await tryJson('/lol-champ-select/v1/session');
     if (sess) {
       const cs = summarizeChampSelect(sess);
-      if (cs.turn) cs.available = await availableFor(cs.turn.type);
+      if (cs.turn) cs.available = await availableFor(cs.turn.type, cs.turn.id);
       // Current spells and rune page, for the loadout bar on the phone.
       const gd = await getGameData().catch(() => null);
       const me = (sess.myTeam || []).find(p => p.cellId === sess.localPlayerCellId) || {};
@@ -558,9 +592,13 @@ async function refresh() {
 }
 
 (async function loop() {
-  try { await refresh(); } catch (e) { console.log(`Refresh failed: ${e.message}`); }
+  let timer;
+  const guard = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timed out')), 20000); });
+  try { await Promise.race([refresh(), guard]); } catch (e) { console.log(`Refresh failed: ${e.message}`); }
+  clearTimeout(timer);
   const fast = state.phase === 'ChampSelect' || state.phase === 'ReadyCheck';
-  setTimeout(loop, !client ? 3000 : fast ? 500 : 1000);
+  // While League is closed: look every 3 s for the first ~20 s, then every 10 s.
+  setTimeout(loop, !client ? (missedScans > 6 ? 10000 : 3000) : fast ? 500 : 1000);
 })();
 
 async function getChampions() {
@@ -601,7 +639,7 @@ const api = {
   'POST /api/queue/start': () => lcuJson('POST', '/lol-lobby/v2/lobby/matchmaking/search'),
   'POST /api/queue/stop': () => lcuJson('DELETE', '/lol-lobby/v2/lobby/matchmaking/search'),
   'POST /api/play-again': () => lcuJson('POST', '/lol-lobby/v2/play-again'),
-  'POST /api/hover': ({ championId, actionId }) => hover(Number(championId), Number(actionId) || 0),
+  'POST /api/hover': ({ championId, actionId }) => queueHover(Number(championId), Number(actionId) || 0),
   'POST /api/lock': ({ championId, actionId }) => lockIn(Number(championId) || 0, Number(actionId) || 0),
   'GET /api/loadout': () => getLoadout(),
   'POST /api/spells': ({ spell1Id, spell2Id }) => setSpells(Number(spell1Id), Number(spell2Id)),
@@ -642,6 +680,7 @@ function send(res, status, body, type = 'application/json') {
   res.end(buf);
 }
 
+const keyFails = new Map(); // ip -> wrong pairing codes in a row
 function keyOk(req) {
   const given = Buffer.from(String(req.headers['x-key'] || ''));
   const want = Buffer.from(config.key);
@@ -694,7 +733,8 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Live status for the PC's QR/status page (this PC only).
-    if (pathname === '/local-status' && req.method === 'GET') {
+    // Host check stops a web page in a PC browser from reaching this through DNS rebinding.
+    if (pathname === '/local-status' && req.method === 'GET' && /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(req.headers.host || '')) {
       if (!isLocal(req)) return send(res, 403, { error: 'This PC only' });
       return send(res, 200, {
         version: VERSION, update, key: config.key, urls: lanUrls(),
@@ -708,7 +748,9 @@ const server = http.createServer(async (req, res) => {
     // Rune and spell icons, proxied from the client's game data (no key needed, like champion icons).
     if (pathname === '/asset' && req.method === 'GET') {
       const p = new URL(req.url, 'http://x').searchParams.get('p') || '';
-      if (!p.startsWith('/lol-game-data/assets/') || p.includes('..')) return send(res, 400, { error: 'bad asset path' });
+      // Plain characters only, and the path must still be under game-data after URL resolution:
+      // "%2e%2e" would otherwise be resolved to ".." and reach any client endpoint.
+      if (!/^\/lol-game-data\/assets\/[A-Za-z0-9_\-./]+$/.test(p) || p.includes('..') || new URL(p, 'http://x').pathname !== p) return send(res, 400, { error: 'bad asset path' });
       let buf = iconCache.get(p);
       if (!buf) {
         const r = await lcu('GET', p, undefined, { asset: true });
@@ -736,7 +778,17 @@ const server = http.createServer(async (req, res) => {
 
     const handler = api[`${req.method} ${pathname}`];
     if (!handler) return send(res, 404, { error: 'Not found' });
-    if (!keyOk(req)) return send(res, 401, { error: 'Wrong or missing pairing code' });
+    const ip = req.socket.remoteAddress;
+    const fails = keyFails.get(ip);
+    if (fails && fails.count >= 10 && Date.now() < fails.until) return send(res, 429, { error: 'Too many wrong codes — wait a minute' });
+    if (!keyOk(req)) {
+      const f = keyFails.get(ip) || { count: 0, until: 0 };
+      f.count++; if (f.count >= 10) f.until = Date.now() + 60000;
+      keyFails.set(ip, f);
+      if (keyFails.size > 1000) keyFails.clear();
+      return send(res, 401, { error: 'Wrong or missing pairing code' });
+    }
+    keyFails.delete(ip);
     if (!isLocal(req)) {
       phone = { ip: req.socket.remoteAddress.replace('::ffff:', ''), lastSeen: Date.now() };
       if (!config.everPaired) { config.everPaired = true; saveConfig(); }
@@ -919,10 +971,10 @@ function installUpdate() {
   console.log(`Starting League Remote ${update.version}…`);
   // The new version takes over from this one (see closeRecordedInstance). This one keeps
   // serving until then, and puts the old exe back if the new one never shows up.
-  if (BACKGROUND) spawn(exe, ['--background'], { detached: true, windowsHide: true, stdio: 'ignore' }).unref(); // straight back into the tray
-  else spawn('cmd.exe', ['/d', '/s', '/c', `start "" "${exe}"`], { windowsVerbatimArguments: true, detached: true, stdio: 'ignore', windowsHide: true }).unref();
   const target = update.version;
-  setTimeout(() => {
+  let rolledBack = false;
+  const rollback = () => {
+    if (rolledBack) return; rolledBack = true;
     try {
       fs.renameSync(exe, exe + '.failed');
       fs.renameSync(exe + '.old', exe);
@@ -930,7 +982,13 @@ function installUpdate() {
     } catch {}
     update = { status: 'failed' };
     console.log(`Update ${target} did not start — still running ${VERSION}.`);
-  }, 60000).unref();
+  };
+  const child = BACKGROUND
+    ? spawn(exe, ['--background'], { detached: true, windowsHide: true, stdio: 'ignore' }) // straight back into the tray
+    : spawn('cmd.exe', ['/d', '/s', '/c', `start "" "${exe}"`], { windowsVerbatimArguments: true, detached: true, stdio: 'ignore', windowsHide: true });
+  child.on('error', rollback); // e.g. antivirus blocked the new exe
+  child.unref();
+  setTimeout(rollback, 60000).unref();
 }
 
 start().then(onListening).catch(e => fatal(e.message));

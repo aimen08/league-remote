@@ -62,6 +62,7 @@
     <h2>Recent</h2>
     <ul id="recent"><li class="muted">Nothing yet.</li></ul>
     <p class="foot">League Remote keeps running in the system tray. Right-click its icon to quit.</p>
+    <p class="foot" style="font-size:11px">League Remote isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.</p>
   </div>
 </div>
 <script>
@@ -81,22 +82,32 @@
   }
   const PHASES = { None: 'In the client', Lobby: 'In a lobby', Matchmaking: 'In queue', ReadyCheck: 'Match found!', ChampSelect: 'Champ select', InProgress: 'In game', EndOfGame: 'Game over', Loading: 'Client loading…' };
   const UPDATE = { checking: 'checking for updates…', latest: 'up to date', downloading: 'downloading an update…', ready: 'update ready, installs after champ select', installing: 'installing update…', failed: 'update check failed, retrying later', off: 'updates off' };
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+  let busy = false;
   async function refresh() {
+    if (busy) return;
+    busy = true;
+    const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 3000);
     try {
-      const s = await (await fetch('/local-status', { cache: 'no-store' })).json();
+      const s = await (await fetch('/local-status', { cache: 'no-store', signal: ctrl.signal })).json();
       $('#key').textContent = s.key;
       $('#league-dot').className = 'dot' + (s.league.connected ? ' on' : '');
-      $('#league').innerHTML = s.league.connected ? `Connected <span class="muted">· ${s.league.summoner || ''} · ${PHASES[s.league.phase] || s.league.phase}</span>` : 'Not found <span class="muted">· open the League client</span>';
+      $('#league').innerHTML = s.league.connected ? `Connected <span class="muted">· ${esc(s.league.summoner)} · ${esc(PHASES[s.league.phase] || s.league.phase)}</span>` : 'Not found <span class="muted">· open the League client</span>';
       $('#phone-dot').className = 'dot' + (s.phone.connected ? ' on' : s.phone.ever ? ' warn' : '');
-      $('#phone').innerHTML = s.phone.connected ? `Connected <span class="muted">· ${s.phone.ip}</span>` : s.phone.ever ? 'Not connected <span class="muted">· phone asleep or app closed</span>' : 'Waiting <span class="muted">· scan the QR code</span>';
+      $('#phone').innerHTML = s.phone.connected ? `Connected <span class="muted">· ${esc(s.phone.ip)}</span>` : s.phone.ever ? 'Not connected <span class="muted">· phone asleep or app closed</span>' : 'Waiting <span class="muted">· scan the QR code</span>';
       $('#settings').innerHTML = `Auto-accept ${s.settings.autoAccept ? 'on' : 'off'}`;
       const st = s.update?.status;
-      $('#version').innerHTML = `v${s.version} <span class="muted">· ${(UPDATE[st] || '').replace('an update', `version ${s.update?.version || ''}`)}</span>`;
+      $('#version').innerHTML = `v${esc(s.version)} <span class="muted">· ${esc((UPDATE[st] || '').replace('an update', `version ${s.update?.version || ''}`))}</span>`;
       $('#ver-dot').className = 'dot ' + (st === 'failed' ? '' : st === 'ready' || st === 'downloading' || st === 'available' ? 'warn' : 'on');
-      $('#recent').innerHTML = s.recent.length ? s.recent.slice().reverse().map(r => `<li><time>${new Date(r.time).toTimeString().slice(0, 5)}</time>${r.text.replace(/</g, '&lt;')}</li>`).join('') : '<li class="muted">Nothing yet.</li>';
+      $('#recent').innerHTML = s.recent.length ? s.recent.slice().reverse().map(r => `<li><time>${new Date(r.time).toTimeString().slice(0, 5)}</time>${esc(r.text)}</li>`).join('') : '<li class="muted">Nothing yet.</li>';
     } catch {
       $('#league').textContent = 'League Remote is not running';
       $('#league-dot').className = 'dot';
+      $('#phone').textContent = '—';
+      $('#phone-dot').className = 'dot';
+    } finally {
+      clearTimeout(timer);
+      busy = false;
     }
   }
   refresh();

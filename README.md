@@ -106,6 +106,12 @@ npm run icons      # re-render the icons from assets/icon.svg (outputs are commi
 
 Fonts: [Teko](https://fonts.google.com/specimen/Teko) for titles, [Poppins](https://fonts.google.com/specimen/Poppins) for buttons and [Inter](https://fonts.google.com/specimen/Inter) for text (SIL Open Font License, licenses in `public/fonts`). The background landscape, hextech crystal and button art were generated for this project; the role, queue, logo and settings icons were traced to SVG from the approved design (sources in `assets/icons`). Champion, rune and spell images come from your own League client; demo mode uses [Community Dragon](https://communitydragon.org).
 
+## Legal
+
+League Remote isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
+
+League Remote uses the League client's local API, which Riot does not officially support; it can change at any time.
+
 ## License
 
 [MIT](LICENSE)

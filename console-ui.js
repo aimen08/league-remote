@@ -77,7 +77,7 @@ function createConsoleUI() {
       ...(urls.length ? urls.map(u => `  ${c.cyan}${u}${c.reset}`) : [`  ${c.red}No network found — connect this PC to Wi-Fi/Ethernet${c.reset}`]),
       `${c.dim}Pairing code:${c.reset} ${c.bold}${key}${c.reset}`,
       '',
-      `${c.dim}Auto-accept ${settings.autoAccept ? c.green + 'on' : 'off'}${c.reset}${c.dim} · Lock before timeout ${settings.autoLock ? c.green + 'on' : 'off'}${c.reset}`,
+      `${c.dim}Auto-accept ${settings.autoAccept ? c.green + 'on' : 'off'}${c.reset}`,
     ];
     if (recent.length) lines.push('', `${c.dim}Recent:${c.reset}`, ...recent);
     lines.push('', `${c.dim}Keep this window open while you play. Close it to stop.${c.reset}`);

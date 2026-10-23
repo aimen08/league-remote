@@ -69,13 +69,17 @@ async function downloadUpdate(info, exePath) {
   const res = await request(info.url);
   const hash = crypto.createHash('sha256');
   const out = fs.createWriteStream(staged);
+  let writeError = null;
+  out.on('error', e => { writeError = e; out.emit('drain'); }); // e.g. read-only folder, disk full, file locked
   let size = 0;
   try {
     for await (const chunk of res) {
+      if (writeError) throw writeError;
       hash.update(chunk);
       size += chunk.length;
       if (!out.write(chunk)) await new Promise(r => out.once('drain', r));
     }
+    if (writeError) throw writeError;
     await new Promise((resolve, reject) => out.end(err => (err ? reject(err) : resolve())));
     if (size !== info.size) throw new Error(`size mismatch (${size} vs ${info.size} bytes)`);
     const got = hash.digest('hex');
