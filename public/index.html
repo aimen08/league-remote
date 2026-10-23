@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0a0e13">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LoL Remote">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon.svg">
+<title>League Remote</title>
+<style>
+  :root {
+    --bg: #0a0e13; --panel: #121a24; --panel-2: #1a2532; --line: #263445;
+    --text: #e8e2d4; --muted: #8b98a8; --gold: #c8aa6e; --gold-hi: #f0e6d2;
+    --teal: #0ac8b9; --red: #e84057; --green: #2fbf71;
+    --safe-b: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  body { min-height: 100dvh; padding-top: env(safe-area-inset-top, 0px); }
+  button { font: inherit; color: inherit; border: 0; cursor: pointer; }
+  .hidden { display: none !important; }
+
+  header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 5; }
+  header h1 { font-size: 16px; margin: 0; letter-spacing: .04em; color: var(--gold-hi); }
+  #who { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--red); flex: none; }
+  .dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .icon-btn { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; width: 38px; height: 38px; font-size: 18px; }
+
+  main { padding: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px; text-align: center; }
+  .card h2 { margin: 0 0 6px; font-size: 22px; color: var(--gold-hi); }
+  .card p { margin: 0; color: var(--muted); }
+  .big { font-size: 44px; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--gold-hi); margin: 10px 0; }
+
+  .btn { display: block; width: 100%; padding: 16px; border-radius: 12px; font-weight: 700; font-size: 17px; letter-spacing: .06em; text-transform: uppercase; margin-top: 12px; background: var(--panel-2); border: 1px solid var(--line); }
+  .btn:disabled { opacity: .4; }
+  .btn.primary { background: linear-gradient(#1e7a74, #0b5b56); border-color: var(--teal); color: #fff; }
+  .btn.gold { background: linear-gradient(#c8aa6e, #8f7340); border-color: var(--gold-hi); color: #111; }
+  .btn.danger { background: transparent; border-color: var(--red); color: var(--red); }
+  .btn.huge { padding: 28px; font-size: 26px; border-radius: 18px; }
+  .btn:active:not(:disabled) { transform: scale(.98); }
+
+  .queues { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .queues button { padding: 12px 8px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); font-size: 14px; }
+  .queues button.on { border-color: var(--gold); color: var(--gold-hi); }
+
+  #roles { margin-top: 16px; text-align: left; }
+  .role-row + .role-row { margin-top: 12px; }
+  .role-lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+  .role-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .role-btns button { padding: 10px 4px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); font-size: 14px; }
+  .role-btns button.on { border-color: var(--teal); color: #fff; background: #0b5b56; }
+
+  .bar { height: 8px; border-radius: 4px; background: var(--panel-2); overflow: hidden; margin: 14px 0 4px; }
+  .bar > div { height: 100%; background: var(--teal); transition: width .25s linear; }
+  .bar.warn > div { background: var(--red); }
+
+  /* champ select */
+  #cs-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  #cs-title { font-size: 18px; font-weight: 700; color: var(--gold-hi); }
+  #cs-title.go { color: var(--teal); }
+  #cs-timer { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 3ch; text-align: right; }
+  #cs-timer.warn { color: var(--red); }
+  .teams { display: grid; gap: 8px; margin-bottom: 12px; }
+  .row { display: flex; gap: 6px; align-items: center; }
+  .row .lbl { width: 42px; font-size: 11px; color: var(--muted); text-transform: uppercase; flex: none; }
+  .face { width: 40px; height: 40px; border-radius: 50%; background: var(--panel-2) center/cover; border: 2px solid var(--line); flex: none; position: relative; }
+  .face.me { border-color: var(--gold); }
+  .face.intent { opacity: .55; }
+  .face.ban { width: 28px; height: 28px; filter: grayscale(1); opacity: .7; }
+  .face .pos { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); font-size: 9px; background: var(--bg); padding: 0 3px; border-radius: 4px; color: var(--muted); }
+
+  #search { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 16px; outline: none; }
+  #search:focus { border-color: var(--gold); }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 10px; margin-top: 12px; padding-bottom: calc(110px + var(--safe-b)); }
+  .ch { background: none; padding: 0; text-align: center; font-size: 11px; color: var(--muted); }
+  .ch .img { aspect-ratio: 1; border-radius: 10px; border: 2px solid transparent; background: var(--panel-2); overflow: hidden; display: grid; place-items: center; font-size: 18px; font-weight: 700; color: var(--muted); position: relative; }
+  .ch img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ch .name { display: block; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ch.fav .img::after { content: '★'; position: absolute; top: 1px; right: 4px; color: var(--gold); font-size: 13px; text-shadow: 0 0 3px #000; }
+  .ch.sel .img { border-color: var(--gold-hi); box-shadow: 0 0 12px rgba(200,170,110,.6); }
+  .ch.sel .name { color: var(--gold-hi); }
+  .ch.sel.pending .img { border-style: dashed; box-shadow: none; }
+
+  #stale { position: sticky; top: 63px; z-index: 7; background: var(--red); color: #fff; font-weight: 700; padding: 10px 16px; text-align: center; }
+  body.stale main, body.stale #dock { opacity: .45; }
+  #sound-hint { background: var(--panel-2); color: var(--muted); font-size: 13px; padding: 8px 16px; text-align: center; border-bottom: 1px solid var(--line); }
+  .ch.off { opacity: .25; }
+  .divider { grid-column: 1 / -1; border-top: 1px solid var(--line); margin: 2px 0; }
+
+  #dock { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + var(--safe-b)); background: rgba(10,14,19,.96); border-top: 1px solid var(--line); display: flex; gap: 12px; align-items: center; z-index: 6; }
+  #dock .face { width: 52px; height: 52px; }
+  #dock-info { flex: 1; min-width: 0; }
+  #dock-name { font-weight: 700; color: var(--gold-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #dock-hint { font-size: 12px; color: var(--muted); }
+  #fav-btn { background: none; font-size: 24px; color: var(--muted); padding: 4px; }
+  #fav-btn.on { color: var(--gold); }
+  #lock-btn { margin: 0; width: auto; padding: 16px 20px; }
+
+  /* settings sheet */
+  #sheet { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 10; display: flex; align-items: flex-end; }
+  #sheet .inner { background: var(--panel); width: 100%; border-radius: 18px 18px 0 0; padding: 20px 16px calc(20px + var(--safe-b)); border-top: 1px solid var(--line); }
+  #sheet h3 { margin: 0 0 10px; color: var(--gold-hi); }
+  .toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .toggle small { display: block; color: var(--muted); }
+  .switch { width: 52px; height: 30px; border-radius: 15px; background: var(--panel-2); border: 1px solid var(--line); position: relative; flex: none; }
+  .switch::after { content: ''; position: absolute; width: 24px; height: 24px; border-radius: 50%; background: var(--muted); top: 2px; left: 2px; transition: .2s; }
+  .switch.on { background: #0b5b56; border-color: var(--teal); }
+  .switch.on::after { left: 24px; background: #fff; }
+
+  #pair input { width: 100%; padding: 14px; font-size: 22px; text-align: center; letter-spacing: .3em; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); margin-top: 14px; text-transform: lowercase; }
+
+  #toast { position: fixed; left: 16px; right: 16px; bottom: calc(100px + var(--safe-b)); background: var(--red); color: #fff; padding: 12px 14px; border-radius: 12px; z-index: 20; text-align: center; font-weight: 600; transition: opacity .3s; }
+  #toast.ok { background: var(--green); }
+
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(10,200,185,.7); } 50% { box-shadow: 0 0 0 14px rgba(10,200,185,0); } }
+  .pulse { animation: pulse 1.2s infinite; }
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="dot"></span>
+  <h1>League Remote</h1>
+  <span id="who"></span>
+  <button class="icon-btn" id="settings-btn" aria-label="Settings">⚙</button>
+</header>
+
+<div id="stale" class="hidden">⚠ Lost connection to your PC — what you see may be out of date. Reconnecting…</div>
+<div id="sound-hint">🔔 Tap anywhere once to turn on sound alerts</div>
+<main>
+  <!-- pairing -->
+  <section id="v-pair" class="card hidden">
+    <h2>Pair with your PC</h2>
+    <p>Enter the 6-letter pairing code shown in the League Remote window on your PC.</p>
+    <form id="pair"><input id="pair-code" maxlength="6" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="abc123"><button class="btn primary">Connect</button></form>
+  </section>
+
+  <!-- can't reach the PC -->
+  <section id="v-offline" class="card hidden">
+    <h2>Can't reach your PC</h2>
+    <p>Make sure League Remote is running on the PC and your phone is on the same Wi-Fi.</p>
+  </section>
+
+  <!-- PC reachable, League client closed -->
+  <section id="v-noclient" class="card hidden">
+    <h2>League isn't open</h2>
+    <p>Start the League client on your PC. This page connects automatically.</p>
+  </section>
+
+  <!-- client open, no lobby -->
+  <section id="v-home" class="card hidden">
+    <h2>Ready to play</h2>
+    <p>Pick a mode to open a lobby.</p>
+    <div class="queues" data-queues></div>
+  </section>
+
+  <!-- lobby -->
+  <section id="v-lobby" class="card hidden">
+    <h2 id="lobby-title">In lobby</h2>
+    <p id="lobby-sub"></p>
+    <div id="roles" class="hidden"></div>
+    <button class="btn primary huge" id="find-btn">Find match</button>
+    <div class="queues" data-queues></div>
+  </section>
+
+  <!-- in queue -->
+  <section id="v-queue" class="card hidden">
+    <h2>In queue</h2>
+    <div class="big" id="queue-time">0:00</div>
+    <p id="queue-est"></p>
+    <p id="queue-auto" style="margin-top:10px"></p>
+    <button class="btn danger" id="cancel-btn">Leave queue</button>
+  </section>
+
+  <!-- ready check -->
+  <section id="v-ready" class="card hidden">
+    <h2>Match found!</h2>
+    <p id="ready-left"></p>
+    <button class="btn primary huge pulse" id="accept-btn">Accept</button>
+    <button class="btn danger" id="decline-btn">Decline</button>
+  </section>
+
+  <!-- champ select -->
+  <section id="v-champ" class="hidden">
+    <div id="cs-head"><div id="cs-title"></div><div id="cs-timer"></div></div>
+    <div class="teams">
+      <div class="row"><span class="lbl">Team</span><span id="t-mine" class="row"></span></div>
+      <div class="row"><span class="lbl">Enemy</span><span id="t-theirs" class="row"></span></div>
+      <div class="row" id="ban-row"><span class="lbl">Bans</span><span id="t-bans" class="row" style="flex-wrap:wrap"></span></div>
+    </div>
+    <div id="cs-picker">
+      <input id="search" type="search" placeholder="Search champion…" autocomplete="off">
+      <p id="grid-empty" class="hidden" style="color:var(--muted);text-align:center;margin-top:20px">Loading champions from the client…</p>
+      <div id="grid"></div>
+    </div>
+    <div id="cs-done" class="card hidden"><h2 id="cs-done-title">Locked in</h2><p id="cs-done-sub">Runes and skins can be changed on the PC.</p></div>
+  </section>
+
+  <!-- in game / after game / other -->
+  <section id="v-other" class="card hidden">
+    <h2 id="other-title"></h2>
+    <p id="other-sub"></p>
+    <button class="btn primary hidden" id="again-btn">Play again</button>
+  </section>
+</main>
+
+<div id="dock" class="hidden">
+  <div class="face" id="dock-face"></div>
+  <div id="dock-info"><div id="dock-name">Choose a champion</div><div id="dock-hint"></div></div>
+  <button id="fav-btn" aria-label="Favorite">☆</button>
+  <button class="btn gold" id="lock-btn" disabled>Lock in</button>
+</div>
+
+<div id="sheet" class="hidden">
+  <div class="inner">
+    <h3>Settings</h3>
+    <div class="toggle"><div>Auto-accept matches<small>The PC accepts queue pops even if your phone is locked.</small></div><button class="switch" id="sw-accept"></button></div>
+    <div class="toggle"><div>Lock hover before timeout<small>Locks your hovered champion with 4 s left so you never dodge. Only works if a champion is hovered.</small></div><button class="switch" id="sw-lock"></button></div>
+    <button class="btn" id="unpair-btn">Unpair this phone</button>
+    <button class="btn primary" id="close-sheet">Done</button>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const QUEUES = [[420, 'Ranked Solo/Duo'], [440, 'Ranked Flex'], [400, 'Normal Draft'], [480, 'Swiftplay'], [450, 'ARAM']];
+const VIEWS = ['pair', 'offline', 'noclient', 'home', 'lobby', 'queue', 'ready', 'champ', 'other'];
+
+// ---------- pairing key ----------
+let key = localStorage.getItem('lr-key') || '';
+const fromHash = new URLSearchParams(location.hash.slice(1)).get('k');
+if (fromHash) { key = fromHash; localStorage.setItem('lr-key', key); history.replaceState(null, '', location.pathname); }
+
+// Every request gives up after a timeout, so a dropped connection can never freeze the screen.
+async function api(method, path, body, timeoutMs = 4000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  let r;
+  try {
+    r = await fetch(path, {
+      method, signal: ctrl.signal,
+      headers: { 'X-Key': key, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (e) {
+    throw Object.assign(new Error('No answer from your PC'), { status: 0, noAnswer: true });
+  } finally {
+    clearTimeout(timer);
+  }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(data.error || `Error ${r.status}`), { status: r.status });
+  return data;
+}
+async function act(path, body, okMsg) {
+  try { await api('POST', path, body); if (okMsg) toast(okMsg, true); poll(true); }
+  catch (e) { toast(e.message); }
+}
+
+let toastTimer;
+function toast(msg, ok) {
+  const t = $('#toast');
+  t.textContent = msg; t.className = ok ? 'ok' : '';
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add('hidden'), 2600);
+}
+
+// ---------- sound + vibration alerts ----------
+let audio;
+addEventListener('pointerdown', () => {
+  audio ||= new (window.AudioContext || window.webkitAudioContext)();
+  audio.resume();
+  $('#sound-hint').classList.add('hidden');
+});
+function alertUser(pattern = [300, 120, 300]) {
+  navigator.vibrate?.(pattern);
+  if (!audio) return;
+  pattern.forEach((_, i) => {
+    if (i % 2) return;
+    const o = audio.createOscillator(), g = audio.createGain();
+    const t = audio.currentTime + i * 0.2;
+    o.frequency.value = 880; g.gain.setValueAtTime(0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    o.connect(g).connect(audio.destination); o.start(t); o.stop(t + 0.26);
+  });
+}
+
+// ---------- champions ----------
+let champions = [], byId = new Map();
+let favs = new Set(JSON.parse(localStorage.getItem('lr-favs') || '[]'));
+let selected = 0;      // what the phone shows as chosen
+let pendingHover = 0;  // a hover sent to the client but not confirmed yet
+let locking = false;
+const iconUrl = id => `/icon/${id}`;
+const norm = s => s.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '');
+
+let loadingChampions = false, lastChampionTry = 0;
+async function loadChampions() {
+  if (champions.length || loadingChampions || Date.now() - lastChampionTry < 2000) return;
+  loadingChampions = true; lastChampionTry = Date.now();
+  try {
+    champions = await api('GET', '/api/champions', undefined, 8000);
+    byId = new Map(champions.map(c => [c.id, c]));
+    buildGrid();
+  } catch {} // retried on the next render
+  finally { loadingChampions = false; }
+}
+
+function buildGrid() {
+  const grid = $('#grid');
+  grid.innerHTML = '';
+  const sorted = [...champions.filter(c => favs.has(c.id)), null, ...champions.filter(c => !favs.has(c.id))];
+  if (!favs.size) sorted.shift();
+  for (const c of sorted) {
+    if (!c) { const d = document.createElement('div'); d.className = 'divider'; grid.append(d); continue; }
+    const b = document.createElement('button');
+    b.className = 'ch' + (favs.has(c.id) ? ' fav' : '');
+    b.dataset.id = c.id;
+    b.dataset.q = norm(c.name) + ' ' + norm(c.alias);
+    b.innerHTML = `<div class="img"><span></span><img loading="lazy" alt=""></div><span class="name"></span>`;
+    b.querySelector('.img span').textContent = c.name.slice(0, 2);
+    b.querySelector('.name').textContent = c.name;
+    const img = b.querySelector('img');
+    img.onerror = () => img.remove();
+    img.src = iconUrl(c.id);
+    b.onclick = () => choose(c.id);
+    grid.append(b);
+  }
+  filterGrid(); paintGrid();
+}
+
+function filterGrid() {
+  const q = norm($('#search').value);
+  for (const b of $('#grid').children) if (b.dataset.q !== undefined) b.classList.toggle('hidden', !!q && !b.dataset.q.includes(q));
+  for (const d of $('#grid').querySelectorAll('.divider')) d.classList.toggle('hidden', !!q);
+}
+$('#search').addEventListener('input', filterGrid);
+
+function paintGrid() {
+  const cs = state?.champSelect;
+  // available === null means the client didn't say, so only grey out what is clearly taken.
+  const avail = cs?.available ? new Set(cs.available) : null;
+  const taken = new Set(cs?.unavailable || []);
+  for (const b of $('#grid').children) {
+    if (!b.dataset.id) continue;
+    const id = Number(b.dataset.id);
+    b.classList.toggle('off', !!cs?.turn && (taken.has(id) || (!!avail && !avail.has(id))));
+    b.classList.toggle('sel', id === selected);
+    b.classList.toggle('pending', id === selected && id === pendingHover);
+  }
+  paintDock();
+}
+
+// Hover a champion. The phone only shows it as hovered once the client confirms;
+// if the client refuses, the selection goes back to what the client really has.
+async function choose(id) {
+  const t = state?.champSelect?.turn;
+  if (!t || locking) return;
+  selected = id; pendingHover = id;
+  paintGrid();
+  $('#search').blur();
+  try {
+    await api('POST', '/api/hover', { championId: id, actionId: t.id }, 6000);
+  } catch (e) {
+    toast(e.noAnswer ? 'No answer from your PC — hover may not have gone through' : e.message);
+    if (selected === id) selected = state?.champSelect?.turn?.championId || 0;
+  } finally {
+    if (pendingHover === id) pendingHover = 0;
+    lastServerChamp = 0; // re-sync with the client on the next poll
+    paintGrid();
+    poll(true);
+  }
+}
+
+$('#fav-btn').onclick = () => {
+  if (!selected) return;
+  favs.has(selected) ? favs.delete(selected) : favs.add(selected);
+  localStorage.setItem('lr-favs', JSON.stringify([...favs]));
+  buildGrid();
+};
+
+// Lock in. Success is only shown after the PC has checked the client really locked it.
+$('#lock-btn').onclick = async () => {
+  const t = state?.champSelect?.turn;
+  if (!t?.active || !selected || locking) return;
+  const ban = t.type === 'ban';
+  locking = true; paintDock();
+  try {
+    const r = await api('POST', '/api/lock', { championId: selected, actionId: t.id }, 10000);
+    toast(`${ban ? 'Banned' : 'Locked in'}: ${byId.get(r.championId)?.name || ''} ✓`, true);
+  } catch (e) {
+    toast(e.noAnswer ? 'No answer from your PC — look at the screen to see if it locked' : e.message);
+    alertUser([500]);
+  } finally {
+    locking = false;
+    lastServerChamp = 0;
+    poll(true);
+  }
+};
+
+function paintDock() {
+  const cs = state?.champSelect, t = cs?.turn;
+  const c = byId.get(selected);
+  const ban = t?.type === 'ban';
+  const confirmed = !!t && !!selected && t.championId === selected && pendingHover !== selected;
+  $('#dock-face').style.backgroundImage = c ? `url(${iconUrl(c.id)})` : '';
+  $('#dock-name').textContent = c ? c.name : (ban ? 'Choose a ban' : 'Choose a champ');
+  $('#fav-btn').classList.toggle('on', favs.has(selected));
+  $('#fav-btn').textContent = favs.has(selected) ? '★' : '☆';
+  const btn = $('#lock-btn');
+  btn.textContent = locking ? (ban ? 'Banning…' : 'Locking…') : ban ? 'Ban' : 'Lock in';
+  btn.className = 'btn ' + (ban ? 'danger' : 'gold');
+  btn.disabled = locking || !(t?.active && selected);
+  $('#dock-hint').textContent =
+    !t ? '' :
+    locking ? 'Waiting for the client to confirm…' :
+    pendingHover && pendingHover === selected ? 'Sending to the client…' :
+    !selected ? (t.active ? (ban ? 'Your turn — tap a champion to ban' : 'Your turn — tap a champion') : 'Not your turn yet') :
+    confirmed ? (t.active ? 'Hovered in client ✓ — tap to confirm' : 'Hovered ✓ — not your turn yet') :
+    'Not hovered in the client';
+}
+
+// ---------- state + rendering ----------
+let state = null, stateAt = 0, lastPhase = '', lastTurnKey = '', lastServerChamp = 0;
+
+function show(view) {
+  for (const v of VIEWS) $('#v-' + v).classList.toggle('hidden', v !== view);
+  $('#dock').classList.toggle('hidden', !(view === 'champ' && state?.champSelect?.turn));
+}
+
+function renderQueues() {
+  const current = state?.lobby?.queueId;
+  for (const box of document.querySelectorAll('[data-queues]')) {
+    box.innerHTML = '';
+    for (const [id, name] of QUEUES) {
+      const b = document.createElement('button');
+      b.textContent = name; b.classList.toggle('on', id === current);
+      b.onclick = () => act('/api/lobby', { queueId: id });
+      box.append(b);
+    }
+  }
+}
+
+const ROLES = [['TOP', 'Top'], ['JUNGLE', 'Jungle'], ['MIDDLE', 'Mid'], ['BOTTOM', 'Bot'], ['UTILITY', 'Support'], ['FILL', 'Fill']];
+function renderRoles(l) {
+  const box = $('#roles');
+  box.classList.toggle('hidden', !l.showRoles);
+  const key = `${l.showRoles}/${l.firstRole}/${l.secondRole}`;
+  if (!l.showRoles || box.dataset.key === key) return;
+  box.dataset.key = key;
+  box.innerHTML = '';
+  for (const [slot, label] of [['first', 'Main role'], ['second', 'Second role']]) {
+    if (slot === 'second' && l.firstRole === 'FILL') continue;
+    const row = document.createElement('div');
+    row.className = 'role-row';
+    row.innerHTML = `<div class="role-lbl">${label}</div><div class="role-btns"></div>`;
+    for (const [id, name] of ROLES) {
+      if (slot === 'second' && id === l.firstRole) continue;
+      const b = document.createElement('button');
+      b.textContent = name;
+      b.classList.toggle('on', id === (slot === 'first' ? l.firstRole : l.secondRole));
+      b.onclick = () => {
+        let first = l.firstRole, second = l.secondRole;
+        if (slot === 'first') { first = id; if (id === 'FILL' || second === id) second = 'UNSELECTED'; }
+        else second = id;
+        act('/api/roles', { first, second });
+      };
+      row.lastElementChild.append(b);
+    }
+    box.append(row);
+  }
+}
+
+const fmt = s => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const face = (p, cls = '') => {
+  const d = document.createElement('div');
+  d.className = 'face ' + cls + (p.isMe ? ' me' : '') + (p.intent ? ' intent' : '');
+  if (p.championId) d.style.backgroundImage = `url(${iconUrl(p.championId)})`;
+  if (p.position) { const s = document.createElement('span'); s.className = 'pos'; s.textContent = p.position.replace('utility', 'sup').replace('middle', 'mid').replace('bottom', 'bot').replace('jungle', 'jg'); d.append(s); }
+  return d;
+};
+
+function render() {
+  const s = state;
+  $('#dot').classList.toggle('on', !!s?.connected);
+  $('#who').textContent = s?.summoner || '';
+  $('#sw-accept').classList.toggle('on', !!s?.autoAccept);
+  $('#sw-lock').classList.toggle('on', !!s?.autoLock);
+
+  if (!s.connected) { lastPhase = ''; return show('noclient'); }
+  const phase = s.phase;
+  if (phase !== lastPhase) {
+    if (phase === 'ReadyCheck') alertUser([400, 150, 400, 150, 400]);
+    if (phase === 'ChampSelect') { lastTurnKey = ''; $('#search').value = ''; filterGrid(); }
+    if (phase === 'Lobby' || phase === 'None') renderQueues();
+    // Say plainly when something ended without the user doing it.
+    const backTo = phase === 'Matchmaking' ? 'you are back in queue' : (phase === 'Lobby' || phase === 'None') ? 'you are out of queue' : '';
+    if (lastPhase === 'ChampSelect' && backTo) { toast(`Champ select ended (a player dodged) — ${backTo}`); alertUser([500]); }
+    if (lastPhase === 'ReadyCheck' && backTo) { toast(`Match was not accepted by everyone — ${backTo}`); alertUser([500]); }
+    lastPhase = phase;
+  }
+
+  switch (phase) {
+    case 'None':
+      return show('home');
+    case 'Lobby': {
+      const l = s.lobby || {};
+      const q = QUEUES.find(([id]) => id === l.queueId);
+      $('#lobby-title').textContent = q ? q[1] : 'In lobby';
+      const rolesMissing = l.showRoles && (l.firstRole === 'UNSELECTED' || (l.firstRole !== 'FILL' && l.secondRole === 'UNSELECTED'));
+      $('#lobby-sub').textContent = `${l.members || 1} player${l.members > 1 ? 's' : ''} in lobby` +
+        (!l.isLeader ? ' · only the party leader can start' : rolesMissing ? ' · pick your roles to queue' : '');
+      $('#find-btn').disabled = !l.isLeader || rolesMissing;
+      renderRoles(l);
+      renderQueues();
+      return show('lobby');
+    }
+    case 'Matchmaking':
+      $('#queue-est').textContent = s.search?.estimated ? `Estimated ${fmt(s.search.estimated)}` : '';
+      $('#queue-auto').textContent = s.autoAccept ? '✓ Auto-accept is on' : 'Tip: turn on auto-accept in ⚙ so you never miss a pop';
+      return show('queue');
+    case 'ReadyCheck': {
+      const accepted = s.readyCheck?.response === 'Accepted', declined = s.readyCheck?.response === 'Declined';
+      $('#accept-btn').disabled = accepted || declined;
+      $('#accept-btn').textContent = accepted ? 'Accepted ✓' : declined ? 'Declined' : 'Accept';
+      $('#accept-btn').classList.toggle('pulse', !accepted && !declined);
+      return show('ready');
+    }
+    case 'ChampSelect':
+      if (!s.champSelect) return other('Champ select', 'Loading from the client…', false);
+      renderChampSelect();
+      return show('champ');
+    case 'InProgress': case 'GameStart': case 'Reconnect':
+      return other('In game', phase === 'Reconnect' ? 'Reconnect from your PC.' : 'Good luck, have fun!', false);
+    case 'PreEndOfGame': case 'WaitingForStats': case 'EndOfGame':
+      return other('Game over', 'Queue up again?', true);
+    case 'Loading':
+      return other('Client loading…', '', false);
+    default:
+      return other(phase, '', false);
+  }
+}
+
+function other(title, sub, again) {
+  $('#other-title').textContent = title; $('#other-sub').textContent = sub;
+  $('#again-btn').classList.toggle('hidden', !again);
+  show('other');
+}
+
+function renderChampSelect() {
+  const cs = state.champSelect;
+  const t = cs.turn;
+  loadChampions(); // no-op once loaded; retries if an earlier load failed
+  $('#grid-empty').classList.toggle('hidden', champions.length > 0);
+
+  // Keep the phone's selection in sync with the client (the client is the truth).
+  const turnKey = t ? `${t.id}:${t.type}:${t.active}` : '';
+  if (turnKey !== lastTurnKey) {
+    if (t?.active && !lastTurnKey.endsWith(':true')) alertUser([250, 100, 250]);
+    selected = t?.championId || 0; lastTurnKey = turnKey; lastServerChamp = selected; pendingHover = 0;
+    if (document.activeElement !== $('#search')) { $('#search').value = ''; filterGrid(); }
+  } else if (!pendingHover && !locking && t && t.championId !== lastServerChamp) {
+    if (t.championId) selected = t.championId;
+    lastServerChamp = t.championId;
+  }
+
+  const title = $('#cs-title');
+  title.classList.toggle('go', !!t?.active);
+  title.textContent =
+    cs.timerPhase === 'FINALIZATION' ? 'Finalizing' :
+    cs.timerPhase === 'GAME_STARTING' ? 'Game starting' :
+    t?.active ? (t.type === 'ban' ? 'Your turn to BAN' : 'Your turn to PICK') :
+    cs.timerPhase === 'PLANNING' ? 'Declare your pick' :
+    cs.locked ? 'Locked in' : 'Waiting for others…';
+
+  $('#t-mine').replaceChildren(...cs.myTeam.map(p => face(p)));
+  $('#t-theirs').replaceChildren(...cs.theirTeam.map(p => face(p)));
+  $('#t-bans').replaceChildren(...cs.bans.map(id => face({ championId: id }, 'ban')));
+  $('#ban-row').classList.toggle('hidden', !cs.bans.length);
+
+  const picking = !!t;
+  $('#cs-picker').classList.toggle('hidden', !picking);
+  $('#cs-done').classList.toggle('hidden', picking);
+  const myChamp = cs.myTeam.find(p => p.isMe)?.championId;
+  $('#cs-done-title').textContent = cs.locked && myChamp ? `Locked in: ${byId.get(myChamp)?.name || ''}` : 'Nothing to pick in this mode';
+  paintGrid();
+}
+
+// countdowns that tick between polls
+setInterval(() => {
+  if (!state?.connected) return;
+  const since = (Date.now() - stateAt) / 1000;
+  if (state.phase === 'Matchmaking') $('#queue-time').textContent = fmt((state.search?.timeInQueue || 0) + since);
+  if (state.phase === 'ReadyCheck') {
+    // The client only reports how long ago the match popped, not how long is left.
+    $('#ready-left').textContent = `Popped ${Math.floor((state.readyCheck?.timer || 0) + since)} s ago`;
+  }
+  if (state.phase === 'ChampSelect' && state.champSelect) {
+    // Rounded down, so the phone never shows more time than there really is.
+    const left = Math.max(0, state.champSelect.timeLeftMs / 1000 - since);
+    $('#cs-timer').textContent = Math.floor(left);
+    $('#cs-timer').classList.toggle('warn', left < 6);
+  }
+}, 250);
+
+// Polls can overlap (timer + right after a tap); only the newest answer is ever shown,
+// and there is exactly one timer at a time.
+let pollTimer, pollSeq = 0, shownSeq = 0, lastOkAt = 0;
+async function poll() {
+  clearTimeout(pollTimer);
+  const seq = ++pollSeq;
+  const startedAt = Date.now();
+  try {
+    if (!key) { show('pair'); return; }
+    const s = await api('GET', '/api/state', undefined, 3000);
+    if (seq < shownSeq) return;
+    shownSeq = seq;
+    state = s;
+    stateAt = startedAt; // count time from when we asked, so countdowns never run ahead of reality
+    lastOkAt = Date.now();
+    render();
+  } catch (e) {
+    if (seq < shownSeq) return;
+    if (e.status === 401) { key = ''; localStorage.removeItem('lr-key'); show('pair'); }
+    else if (!state || Date.now() - lastOkAt > 10000) show('offline');
+  } finally {
+    paintConnection();
+    if (seq === pollSeq) {
+      clearTimeout(pollTimer);
+      const fast = state?.phase === 'ChampSelect' || state?.phase === 'ReadyCheck';
+      pollTimer = setTimeout(poll, fast ? 500 : 1000);
+    }
+  }
+}
+
+// A red banner whenever what's on screen might be out of date.
+function paintConnection() {
+  const lost = !!state && (Date.now() - lastOkAt > 2500 || state.stateAgeMs > 2500);
+  $('#stale').classList.toggle('hidden', !lost);
+  document.body.classList.toggle('stale', lost);
+  $('#dot').classList.toggle('on', !lost && !!state?.connected);
+}
+setInterval(paintConnection, 500);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(true); });
+
+// ---------- buttons ----------
+$('#accept-btn').onclick = () => act('/api/accept');
+$('#decline-btn').onclick = () => act('/api/decline');
+$('#find-btn').onclick = () => act('/api/queue/start');
+$('#cancel-btn').onclick = () => act('/api/queue/stop');
+$('#again-btn').onclick = () => act('/api/play-again');
+$('#settings-btn').onclick = () => $('#sheet').classList.remove('hidden');
+$('#close-sheet').onclick = () => $('#sheet').classList.add('hidden');
+$('#sheet').onclick = e => { if (e.target.id === 'sheet') $('#sheet').classList.add('hidden'); };
+$('#sw-accept').onclick = () => act('/api/settings', { autoAccept: !state?.autoAccept });
+$('#sw-lock').onclick = () => act('/api/settings', { autoLock: !state?.autoLock });
+$('#unpair-btn').onclick = () => { key = ''; localStorage.removeItem('lr-key'); $('#sheet').classList.add('hidden'); show('pair'); };
+$('#pair').onsubmit = e => {
+  e.preventDefault();
+  key = $('#pair-code').value.trim().toLowerCase();
+  localStorage.setItem('lr-key', key);
+  poll(true);
+};
+
+poll(true);
+</script>
+</body>
+</html>
