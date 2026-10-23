@@ -89,7 +89,7 @@
       $('#league').innerHTML = s.league.connected ? `Connected <span class="muted">· ${s.league.summoner || ''} · ${PHASES[s.league.phase] || s.league.phase}</span>` : 'Not found <span class="muted">· open the League client</span>';
       $('#phone-dot').className = 'dot' + (s.phone.connected ? ' on' : s.phone.ever ? ' warn' : '');
       $('#phone').innerHTML = s.phone.connected ? `Connected <span class="muted">· ${s.phone.ip}</span>` : s.phone.ever ? 'Not connected <span class="muted">· phone asleep or app closed</span>' : 'Waiting <span class="muted">· scan the QR code</span>';
-      $('#settings').innerHTML = `Auto-accept ${s.settings.autoAccept ? 'on' : 'off'} <span class="muted">·</span> Lock before timeout ${s.settings.autoLock ? 'on' : 'off'}`;
+      $('#settings').innerHTML = `Auto-accept ${s.settings.autoAccept ? 'on' : 'off'}`;
       const st = s.update?.status;
       $('#version').innerHTML = `v${s.version} <span class="muted">· ${(UPDATE[st] || '').replace('an update', `version ${s.update?.version || ''}`)}</span>`;
       $('#ver-dot').className = 'dot ' + (st === 'failed' ? '' : st === 'ready' || st === 'downloading' || st === 'available' ? 'warn' : 'on');

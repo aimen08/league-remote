@@ -407,7 +407,6 @@
   <div class="inner">
     <h3>Settings</h3>
     <div class="toggle"><div>Auto-accept matches<small>The PC accepts queue pops even if your phone is locked.</small></div><button class="switch" id="sw-accept"></button></div>
-    <div class="toggle"><div>Lock hover before timeout<small>Off by default. When on, your hovered pick or ban is locked with 4 s left so you never dodge.</small></div><button class="switch" id="sw-lock"></button></div>
     <p id="version" style="color:var(--muted);font-size:13px;text-align:center;margin:14px 0 0"></p>
     <button class="btn ghost" id="unpair-btn">Unpair this phone</button>
     <button class="btn primary" id="close-sheet">Done</button>
@@ -716,7 +715,6 @@ function render() {
   $('#dot').classList.toggle('on', !!s?.connected);
   $('#who').textContent = s?.summoner || '';
   $('#sw-accept').classList.toggle('on', !!s?.autoAccept);
-  $('#sw-lock').classList.toggle('on', !!s?.autoLock);
   $('#version').textContent = s?.version ? `League Remote v${s.version}` : '';
 
   if (!s.connected) { lastPhase = ''; return show('noclient'); }
@@ -1071,7 +1069,6 @@ $('#settings-btn').onclick = () => $('#sheet').classList.remove('hidden');
 $('#close-sheet').onclick = () => $('#sheet').classList.add('hidden');
 $('#sheet').onclick = e => { if (e.target.id === 'sheet') $('#sheet').classList.add('hidden'); };
 $('#sw-accept').onclick = () => act('/api/settings', { autoAccept: !state?.autoAccept });
-$('#sw-lock').onclick = () => act('/api/settings', { autoLock: !state?.autoLock });
 $('#unpair-btn').onclick = () => { key = ''; store.del('lr-key'); $('#sheet').classList.add('hidden'); show('pair'); };
 $('#pair').onsubmit = e => {
   e.preventDefault();

@@ -76,8 +76,8 @@ const config = (() => {
   cfg.key ??= randomKey();
   cfg.autoAccept ??= false;
   // Locking a hover by itself surprised people, so it is opt-in (switched off once for older settings).
-  if ((cfg.settingsVersion || 1) < 2) { cfg.autoLock = false; cfg.settingsVersion = 2; }
-  cfg.autoLock ??= false;
+  // Auto-lock was removed: the app never locks unless the player taps Lock in / Ban.
+  delete cfg.autoLock; delete cfg.settingsVersion;
   return cfg;
 })();
 const saveConfig = () => fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
@@ -287,7 +287,7 @@ async function actionState(id) {
   return (sess?.actions || []).flat().find(a => a.id === id);
 }
 
-// One lock at a time, so a manual lock and the auto-lock never race each other.
+// One lock at a time, so two quick taps never race each other.
 let lockQueue = Promise.resolve();
 function lockIn(championId, actionId) {
   const run = lockQueue.then(() => doLockIn(championId, actionId));
@@ -469,9 +469,6 @@ async function applyRecommended(index, overwritePageId) {
 }
 
 // ---------- state loop ----------
-// Auto-lock starts this long before the timer ends: the state loop runs every 0.5 s in champ
-// select and a lock (with retries and checks) takes at most ~1.5 s, so it always finishes in time.
-const AUTO_LOCK_MS = 4000;
 let state = { connected: false };
 let stateAt = Date.now();
 let refreshSeq = 0, appliedSeq = 0;
@@ -481,7 +478,6 @@ const applyState = (s, seq) => { if (seq < appliedSeq) return; appliedSeq = seq;
 let summoner = null;
 let champions = null;
 let iconCache = new Map();
-let lastAutoLockedAction = null;
 let clientAnswered = false;
 
 async function refresh() {
@@ -516,7 +512,7 @@ async function refresh() {
     summoner = s && (s.gameName ? `${s.gameName}#${s.tagLine}` : s.displayName) || null;
   }
 
-  const next = { connected: true, phase, summoner, autoAccept: config.autoAccept, autoLock: config.autoLock };
+  const next = { connected: true, phase, summoner, autoAccept: config.autoAccept };
 
   if (phase === 'Lobby') {
     const lobby = await tryJson('/lol-lobby/v2/lobby');
@@ -548,14 +544,6 @@ async function refresh() {
     if (sess) {
       const cs = summarizeChampSelect(sess);
       if (cs.turn) cs.available = await availableFor(cs.turn.type);
-      // Lock the hovered champion just before the timer runs out (a missed pick dodges the game).
-      const t = cs.turn;
-      if (config.autoLock && t?.active && t.championId && cs.deadline - Date.now() < AUTO_LOCK_MS && lastAutoLockedAction !== t.id) {
-        lastAutoLockedAction = t.id;
-        await lockIn(t.championId, t.id)
-          .then(() => console.log(`Auto-locked your ${t.type} before the timer ran out.`))
-          .catch(e => console.log(`Auto-lock FAILED: ${e.message}`));
-      }
       // Current spells and rune page, for the loadout bar on the phone.
       const gd = await getGameData().catch(() => null);
       const me = (sess.myTeam || []).find(p => p.cellId === sess.localPlayerCellId) || {};
@@ -620,10 +608,10 @@ const api = {
   'POST /api/runes/page': ({ pageId }) => setRunePage(Number(pageId)),
   'POST /api/runes/recommended': ({ index, overwritePageId }) => applyRecommended(Number(index), Number(overwritePageId) || 0),
   'POST /api/settings': (body) => {
-    for (const k of ['autoAccept', 'autoLock']) if (typeof body[k] === 'boolean') config[k] = body[k];
+    if (typeof body.autoAccept === 'boolean') config.autoAccept = body.autoAccept;
     saveConfig();
-    state = { ...state, autoAccept: config.autoAccept, autoLock: config.autoLock };
-    return { autoAccept: config.autoAccept, autoLock: config.autoLock };
+    state = { ...state, autoAccept: config.autoAccept };
+    return { autoAccept: config.autoAccept };
   },
 };
 
@@ -712,7 +700,7 @@ const server = http.createServer(async (req, res) => {
         version: VERSION, update, key: config.key, urls: lanUrls(),
         league: { connected: !!state.connected, phase: state.phase || '', summoner: state.summoner || '' },
         phone: { connected: Date.now() - phone.lastSeen < 6000, ever: !!phone.ip || !!config.everPaired, ip: phone.ip },
-        settings: { autoAccept: config.autoAccept, autoLock: config.autoLock },
+        settings: { autoAccept: config.autoAccept },
         recent: recentLog.slice(-6),
       });
     }
@@ -960,7 +948,7 @@ function onListening() {
       update,
       league: { connected: !!state.connected, phase: state.phase, summoner: state.summoner },
       phone: { connected: Date.now() - phone.lastSeen < 6000, ever: !!phone.ip, ip: phone.ip },
-      settings: { autoAccept: config.autoAccept, autoLock: config.autoLock },
+      settings: { autoAccept: config.autoAccept },
     });
     tick();
     setInterval(tick, 500);

@@ -5,7 +5,7 @@
 **Accept your League of Legends queue, ban, pick, set runes and summoner spells, and lock in your champion from your phone.** Queue up, go to the bathroom (or make food), and handle champ select from wherever you are in the house.
 
 <p align="center">
-  <img src="docs/promo.gif" width="720" alt="League Remote promo: queue from anywhere, accept, ban and pick, runes and spells, auto-lock">
+  <img src="docs/promo.gif" width="720" alt="League Remote promo: queue from anywhere, accept, ban and pick, runes and spells">
 </p>
 
 <p align="center"><a href="docs/promo-15s.mp4">▶ Watch the 15-second promo (with music)</a> · <a href="docs/promo.mp4">full walkthrough (1080p)</a> · <em>recorded in demo mode against a fake League client</em></p>
@@ -61,7 +61,7 @@ A remote you can't trust is worse than no remote. If it says you're locked in an
 - **Timer**: worked out from the client's own deadline and rounded down, so the phone never shows more time than you really have.
 - **Connection lost**: if the phone loses the PC for more than 2.5 seconds, a red banner says the screen may be out of date and the screen dims. A frozen screen never looks current.
 - **Turns**: every tap names the exact turn it was meant for. If your turn changed in the meantime (for example the ban ended), the tap is refused instead of landing on the wrong turn.
-- **Lock before timeout** (off by default, switch it on in ⚙ settings): if you hovered a champion or ban but didn't lock it, the PC locks it with 4 seconds left, so you don't dodge. In testing it locked with about 3 seconds still on the clock.
+- **Nothing locks by itself**: the app only locks a pick or ban when you tap Lock in / Ban. If you hover a champion and walk away, it stays a hover.
 - **Dodges**: if champ select ends because a player dodged, or a match isn't accepted by everyone, the phone tells you, beeps and shows where you are now.
 
 ### Things to know
