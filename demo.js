@@ -125,11 +125,15 @@ function advance() {
 
 function sessionJson() {
   const st = cs.steps[cs.step];
+  // Like the real client: a hover shows up in the session about a second after it was accepted,
+  // and the timer is only re-stamped when something happens, not on every read.
+  const lag = a => Date.now() < (a.showAt || 0) ? { ...a, championId: a.shownChamp } : a;
+  const stamp = Math.max(cs.stepStart, cs.timerStamp || 0);
   const timerPhase = st.name === 'PLANNING' ? 'PLANNING' : st.name === 'FINALIZATION' ? 'FINALIZATION' : 'BAN_PICK';
   return {
-    localPlayerCellId: ME, myTeam: cs.myTeam, theirTeam: cs.theirTeam, bans: cs.bans,
-    actions: [[cs.myBan], cs.otherPicks, [cs.myPick]],
-    timer: { phase: timerPhase, adjustedTimeLeftInPhase: Math.max(0, st.ms - (Date.now() - cs.stepStart)), internalNowInEpochMs: Date.now() },
+    localPlayerCellId: ME, myTeam: cs.myTeam.map(p => p.cellId === ME && Date.now() < (cs.myPick.showAt || 0) ? { ...p, championPickIntent: cs.myPick.shownChamp } : p), theirTeam: cs.theirTeam, bans: cs.bans,
+    actions: [[lag(cs.myBan)], cs.otherPicks, [lag(cs.myPick)]],
+    timer: { phase: timerPhase, totalTimeInPhase: st.ms, adjustedTimeLeftInPhase: Math.max(0, st.ms - (stamp - cs.stepStart)), internalNowInEpochMs: stamp },
   };
 }
 
@@ -237,7 +241,11 @@ http.createServer((req, res) => {
         if (!a) return json(res, 404, { message: 'No such action' });
         if (m === 'PATCH') {
           if (body.championId && taken().has(body.championId)) return json(res, 500, { message: 'Champion is not available' });
-          if (body.championId) a.championId = body.championId;
+          if (body.championId) {
+            if (!('completed' in body)) { a.shownChamp = a.championId; a.showAt = Date.now() + 900; }
+            a.championId = body.championId;
+          }
+          cs.timerStamp = Date.now();
           // `completed` in a PATCH is ignored here, so the server must fall back to /complete.
           return json(res, 204);
         }

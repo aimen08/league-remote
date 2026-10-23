@@ -193,6 +193,8 @@
   .ch.sel .img { border-color: #cdeff0; box-shadow: 0 0 16px rgba(18, 201, 187, .7); }
   .ch.sel.pending .img { border-style: dashed; box-shadow: none; }
   .ch.off { opacity: .25; filter: grayscale(.9); }
+  .ch.variant { display: none; }
+  #grid-legend { margin: 8px 2px 0; font-size: 13px; color: var(--muted); }
   .divider { grid-column: 1 / -1; height: 1px; margin: 2px 0; background: linear-gradient(90deg, transparent, var(--gold-2), transparent); }
 
   #stale { position: sticky; top: 82px; z-index: 7; padding: 10px 16px; text-align: center; font-weight: 700; color: #fff; background: linear-gradient(180deg, #c2304a, #8f1f33); box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
@@ -379,6 +381,7 @@
     </div>
     <div id="cs-picker">
       <input id="search" type="search" placeholder="Search champion…" autocomplete="off">
+      <p id="grid-legend" class="hidden"></p>
       <p id="grid-empty" class="hidden" style="color:var(--muted);text-align:center;margin-top:20px">Loading champions from the client…</p>
       <div id="grid"></div>
     </div>
@@ -404,7 +407,7 @@
   <div class="inner">
     <h3>Settings</h3>
     <div class="toggle"><div>Auto-accept matches<small>The PC accepts queue pops even if your phone is locked.</small></div><button class="switch" id="sw-accept"></button></div>
-    <div class="toggle"><div>Lock hover before timeout<small>Locks your hovered champion with 4 s left so you never dodge. Only works if a champion is hovered.</small></div><button class="switch" id="sw-lock"></button></div>
+    <div class="toggle"><div>Lock hover before timeout<small>Off by default. When on, your hovered pick or ban is locked with 4 s left so you never dodge.</small></div><button class="switch" id="sw-lock"></button></div>
     <p id="version" style="color:var(--muted);font-size:13px;text-align:center;margin:14px 0 0"></p>
     <button class="btn ghost" id="unpair-btn">Unpair this phone</button>
     <button class="btn primary" id="close-sheet">Done</button>
@@ -515,11 +518,14 @@ function buildGrid() {
     b.className = 'ch' + (favs.has(c.id) ? ' fav' : '');
     b.dataset.id = c.id;
     b.dataset.q = norm(c.name) + ' ' + norm(c.alias);
+    if (c.variant) b.dataset.variant = '1';
     b.innerHTML = `<div class="img"><span></span><img loading="lazy" alt=""></div><span class="name"></span>`;
     b.querySelector('.img span').textContent = c.name.slice(0, 2);
     b.querySelector('.name').textContent = c.name;
     const img = b.querySelector('img');
-    img.onerror = () => img.remove();
+    // a busy PC can drop an icon request: try again a few times before showing the initials
+    let tries = 0;
+    img.onerror = () => { if (++tries > 3) return img.remove(); setTimeout(() => { img.src = `${iconUrl(c.id)}?r=${tries}`; }, 800 * tries); };
     img.src = iconUrl(c.id);
     b.onclick = () => choose(c.id);
     grid.append(b);
@@ -543,9 +549,16 @@ function paintGrid() {
     if (!b.dataset.id) continue;
     const id = Number(b.dataset.id);
     b.classList.toggle('off', !!cs?.turn && (taken.has(id) || (!!avail && !avail.has(id))));
+    // event-mode copies of champions only show up when this mode offers them
+    b.classList.toggle('variant', !!b.dataset.variant && !avail?.has(id));
     b.classList.toggle('sel', id === selected);
     b.classList.toggle('pending', id === selected && id === pendingHover);
   }
+  // say why tiles are grey, so nobody wonders whether the app is wrong
+  const legend = !cs?.turn ? '' : cs.turn.type === 'ban' ? 'Greyed out: already banned or picked.' :
+    avail ? "Greyed out: banned, picked by someone else, or a champion you don't own." : 'Greyed out: banned or picked by someone else.';
+  $('#grid-legend').textContent = legend;
+  $('#grid-legend').classList.toggle('hidden', !legend);
   paintDock();
 }
 

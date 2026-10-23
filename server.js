@@ -75,7 +75,9 @@ const config = (() => {
   try { cfg = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); } catch {}
   cfg.key ??= randomKey();
   cfg.autoAccept ??= false;
-  cfg.autoLock ??= true;
+  // Locking a hover by itself surprised people, so it is opt-in (switched off once for older settings).
+  if ((cfg.settingsVersion || 1) < 2) { cfg.autoLock = false; cfg.settingsVersion = 2; }
+  cfg.autoLock ??= false;
   return cfg;
 })();
 const saveConfig = () => fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
@@ -118,9 +120,13 @@ function findClient() {
 }
 
 // ---------- talking to the client ----------
-const lcuAgent = new https.Agent({ rejectUnauthorized: false, keepAlive: true }); // the client uses a self-signed cert
+// The client uses a self-signed cert. Both pools are bounded: without a limit, the phone loading ~170
+// champion icons opened one connection each and kept them all, until the client refused new ones.
+// Images get their own pool so they can never delay a hover or lock-in.
+const lcuAgent = new https.Agent({ rejectUnauthorized: false, keepAlive: true, maxSockets: 4, maxFreeSockets: 2, timeout: 30000 });
+const assetAgent = new https.Agent({ rejectUnauthorized: false, keepAlive: true, maxSockets: 4, maxFreeSockets: 2, timeout: 30000 });
 
-function lcu(method, urlPath, body) {
+function lcu(method, urlPath, body, { asset = false } = {}) {
   if (!client) return Promise.reject(Object.assign(new Error('League client is not running'), { status: 503 }));
   return new Promise((resolve, reject) => {
     const url = new URL(urlPath, client.base);
@@ -128,7 +134,7 @@ function lcu(method, urlPath, body) {
     const data = body === undefined ? null : JSON.stringify(body);
     const headers = { Authorization: client.auth, Accept: 'application/json' };
     if (data) Object.assign(headers, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) });
-    const req = (isHttps ? https : http).request(url, { method, headers, agent: isHttps ? lcuAgent : undefined }, res => {
+    const req = (isHttps ? https : http).request(url, { method, headers, agent: isHttps ? (asset ? assetAgent : lcuAgent) : undefined }, res => {
       const chunks = [];
       res.on('data', c => chunks.push(c));
       res.on('end', () => resolve({ status: res.statusCode, type: res.headers['content-type'], buf: Buffer.concat(chunks) }));
@@ -181,7 +187,11 @@ function summarizeChampSelect(sess) {
   // The client reports time left as of `internalNowInEpochMs` (same PC clock), so turn it into an
   // absolute deadline; otherwise the countdown would run up to a poll interval behind reality.
   const readAt = Date.now();
-  const asOf = timer.internalNowInEpochMs && Math.abs(timer.internalNowInEpochMs - readAt) < 10000 ? timer.internalNowInEpochMs : readAt;
+  // The client only re-stamps the timer when something happens, so the stamp is often many seconds old
+  // (it must not be replaced by "now", or the countdown jumps back up). Only distrust stamps that
+  // cannot belong to this phase.
+  const stamp = timer.internalNowInEpochMs;
+  const asOf = stamp && stamp <= readAt + 2000 && readAt - stamp <= (timer.totalTimeInPhase || 0) + 10000 ? stamp : readAt;
   return {
     timerPhase: timer.phase || '',
     deadline: asOf + Math.max(0, timer.adjustedTimeLeftInPhase ?? 0),
@@ -259,12 +269,14 @@ async function hover(championId, actionId) {
     throw e;
   }
   // Only report success once the client shows the hover (on the action, or as our pick intent).
-  for (let i = 0; i < 4; i++) {
+  // The real client can take over a second to show a hover it accepted.
+  for (const end = Date.now() + 3000; ;) {
     const { sess, actions } = await readSession();
     const me = (sess.myTeam || []).find(p => p.cellId === sess.localPlayerCellId);
     if (actions.find(a => a.id === turn.id)?.championId === championId ||
         (turn.type === 'pick' && (me?.championPickIntent === championId || me?.championId === championId))) return;
-    await new Promise(r => setTimeout(r, 150));
+    if (Date.now() > end) break;
+    await new Promise(r => setTimeout(r, 200));
   }
   throw Object.assign(new Error('The client did not take the hover — try again'), { status: 502 });
 }
@@ -568,7 +580,8 @@ async function getChampions() {
     const list = await lcuJson('GET', '/lol-game-data/assets/v1/champion-summary.json');
     champions = list
       .filter(c => c.id > 0)
-      .map(c => ({ id: c.id, name: c.name, alias: c.alias }))
+      // ids from 10000 up are event-mode copies (e.g. "Jade_Morgana"); the phone only shows them when the mode allows them
+      .map(c => ({ id: c.id, name: c.name, alias: c.alias, ...(c.id >= 10000 ? { variant: true } : {}) }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
   return champions;
@@ -710,7 +723,7 @@ const server = http.createServer(async (req, res) => {
       if (!p.startsWith('/lol-game-data/assets/') || p.includes('..')) return send(res, 400, { error: 'bad asset path' });
       let buf = iconCache.get(p);
       if (!buf) {
-        const r = await lcu('GET', p);
+        const r = await lcu('GET', p, undefined, { asset: true });
         if (r.status !== 200) return send(res, 404, { error: 'no asset' });
         buf = r.buf;
         if (iconCache.size < 800) iconCache.set(p, buf);
@@ -724,7 +737,7 @@ const server = http.createServer(async (req, res) => {
     if (icon && req.method === 'GET') {
       let buf = iconCache.get(icon[1]);
       if (!buf) {
-        const r = await lcu('GET', `/lol-game-data/assets/v1/champion-icons/${icon[1]}.png`);
+        const r = await lcu('GET', `/lol-game-data/assets/v1/champion-icons/${icon[1]}.png`, undefined, { asset: true });
         if (r.status !== 200) return send(res, 404, { error: 'no icon' });
         buf = r.buf;
         iconCache.set(icon[1], buf);

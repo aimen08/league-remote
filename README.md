@@ -61,7 +61,7 @@ A remote you can't trust is worse than no remote. If it says you're locked in an
 - **Timer**: worked out from the client's own deadline and rounded down, so the phone never shows more time than you really have.
 - **Connection lost**: if the phone loses the PC for more than 2.5 seconds, a red banner says the screen may be out of date and the screen dims. A frozen screen never looks current.
 - **Turns**: every tap names the exact turn it was meant for. If your turn changed in the meantime (for example the ban ended), the tap is refused instead of landing on the wrong turn.
-- **Lock before timeout** (on by default): if you hovered a champion but didn't lock it, the PC locks it with 4 seconds left, so you don't dodge. In testing it locked with about 3 seconds still on the clock.
+- **Lock before timeout** (off by default, switch it on in ⚙ settings): if you hovered a champion or ban but didn't lock it, the PC locks it with 4 seconds left, so you don't dodge. In testing it locked with about 3 seconds still on the clock.
 - **Dodges**: if champ select ends because a player dodged, or a match isn't accepted by everyone, the phone tells you, beeps and shows where you are now.
 
 ### Things to know
