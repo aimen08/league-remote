@@ -113,7 +113,8 @@ function advance() {
       }
       cs.step++; cs.stepStart = now; st = cs.steps[cs.step];
     }
-    cs.myBan.isInProgress = st.name === 'BAN' && !cs.myBan.completed;
+    // like the real client: the ban already shows as in progress while players declare picks
+    cs.myBan.isInProgress = (st.name === 'PLANNING' || st.name === 'BAN') && !cs.myBan.completed;
     cs.myPick.isInProgress = st.name === 'PICK' && !cs.myPick.completed;
     const me = cs.myTeam[ME];
     me.championPickIntent = cs.myPick.championId;
@@ -229,7 +230,8 @@ http.createServer((req, res) => {
       }
       // Like the real client in the user's game: these lists come back empty or missing.
       if (route === 'GET /lol-champ-select/v1/pickable-champion-ids') return json(res, 200, []);
-      if (route === 'GET /lol-champ-select/v1/bannable-champion-ids') return json(res, 404, { message: 'Not found' });
+      // only owned champions, although anything can be banned
+      if (route === 'GET /lol-champ-select/v1/bannable-champion-ids') return json(res, 200, CHAMPS.filter(c => c.id !== 777 && c.id !== 238).map(c => c.id));
       if ((match = /^\/lol-champ-select\/v1\/session\/actions\/(\d+)(\/complete)?$/.exec(p))) {
         const a = [cs.myBan, cs.myPick].find(x => x.id === Number(match[1]));
         if (!a) return json(res, 404, { message: 'No such action' });

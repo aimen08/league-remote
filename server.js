@@ -157,7 +157,10 @@ function summarizeChampSelect(sess) {
   const me = sess.localPlayerCellId;
   const actions = (sess.actions || []).flat();
   const mine = actions.filter(a => a.actorCellId === me && (a.type === 'pick' || a.type === 'ban'));
-  const active = mine.find(a => a.isInProgress && !a.completed);
+  const timer = sess.timer || {};
+  // During planning the client can already mark the ban as in progress, but nothing can be banned
+  // yet: that phase is for declaring the champion you want to play.
+  const active = timer.phase === 'PLANNING' ? null : mine.find(a => a.isInProgress && !a.completed);
   // When it isn't our turn yet, hovering sets our pick intent.
   const turn = active || mine.find(a => a.type === 'pick' && !a.completed);
   const myPicks = mine.filter(a => a.type === 'pick');
@@ -177,7 +180,6 @@ function summarizeChampSelect(sess) {
   });
   // The client reports time left as of `internalNowInEpochMs` (same PC clock), so turn it into an
   // absolute deadline; otherwise the countdown would run up to a poll interval behind reality.
-  const timer = sess.timer || {};
   const readAt = Date.now();
   const asOf = timer.internalNowInEpochMs && Math.abs(timer.internalNowInEpochMs - readAt) < 10000 ? timer.internalNowInEpochMs : readAt;
   return {
@@ -210,13 +212,14 @@ async function turnFor(actionId) {
   return { turn };
 }
 
-// Which champions the client allows for this pick/ban. Returns null when the client won't say,
+// Which champions the client allows for a pick. Returns null when the client won't say,
 // so the phone leaves everything tappable instead of greying it all out.
+// Bans get no list: any champion can be banned, owned or not (the client's bannable list can be
+// limited to owned champions), so only banned and picked champions are greyed out.
 const listSources = {};
 async function availableFor(type) {
-  const paths = type === 'ban'
-    ? ['/lol-champ-select/v1/bannable-champion-ids', '/lol-lobby-team-builder/champ-select/v1/bannable-champion-ids']
-    : ['/lol-champ-select/v1/pickable-champion-ids', '/lol-lobby-team-builder/champ-select/v1/pickable-champion-ids'];
+  if (type === 'ban') return null;
+  const paths = ['/lol-champ-select/v1/pickable-champion-ids', '/lol-lobby-team-builder/champ-select/v1/pickable-champion-ids'];
   let list = null, source = 'none (everything tappable)';
   for (const p of paths) {
     const r = await tryJson(p);

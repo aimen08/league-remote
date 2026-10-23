@@ -12,6 +12,8 @@
 
 ## Download
 
+<p align="center"><img src="docs/how-it-works.png" width="900" alt="How it works: 1 download LeagueRemote.exe, 2 run it on your PC and a QR code opens, 3 scan it with your phone on the same Wi-Fi, 4 accept, ban, pick and set runes from your phone"></p>
+
 1. Download **[LeagueRemote.exe](https://github.com/aimen08/league-remote/releases/latest/download/LeagueRemote.exe)** from the [latest release](https://github.com/aimen08/league-remote/releases/latest) (Windows, nothing else to install).
 2. Double-click it. It starts in the **system tray** (next to the clock). The first time, it also opens a page on your PC with the QR code and live status:
 
