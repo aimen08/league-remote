@@ -11,6 +11,7 @@ const { execFile, exec, spawn } = require('child_process');
 const QRCode = require('qrcode');
 const { createConsoleUI } = require('./console-ui');
 const updater = require('./updater');
+const tray = require('./tray');
 const { version: VERSION } = require('./package.json');
 
 // When packaged as LeagueRemote.exe the phone app is embedded in the exe.
@@ -32,8 +33,24 @@ if (!sea && !fs.existsSync(CONFIG_PATH) && fs.existsSync(path.join(__dirname, 'c
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const readPublic = file => sea ? Buffer.from(sea.getAsset(file)) : fs.readFileSync(path.join(PUBLIC_DIR, file));
 
-const ui = createConsoleUI();
+// --background: started by LeagueRemote.exe (see main.js) to live in the system tray, with no console.
+const BACKGROUND = process.argv.includes('--background');
+const ui = BACKGROUND ? null : createConsoleUI();
+
+// The last few log lines, for the status page (the console window shows its own copy).
+const recentLog = [];
+const logToConsole = console.log;
+console.log = (...args) => {
+  recentLog.push({ time: Date.now(), text: args.join(' ') });
+  if (recentLog.length > 8) recentLog.shift();
+  logToConsole(...args);
+};
+
 function fatal(msg) {
+  if (BACKGROUND) {
+    tray.showMessage('League Remote', msg).then(() => process.exit(1));
+    return;
+  }
   (ui ? ui.error : console.error)(`\n  ${msg}\n`);
   if (!process.stdin.isTTY) process.exit(1);
   (ui ? ui.error : console.error)('  Press Enter to close.');
@@ -214,14 +231,14 @@ async function availableFor(type) {
   }
   if (listSources[type] !== source) {
     listSources[type] = source;
-    if (!ui) console.log(`${type} list from: ${source}`);
+    if (!ui) logToConsole(`${type} list from: ${source}`);
   }
   return list;
 }
 
 // Keep the last failure on disk so problems in real games can be diagnosed afterwards.
 async function logFailure(step, err) {
-  if (!ui) console.log(`${step} failed: ${err.status || ''} ${err.message}`);
+  if (!ui) logToConsole(`${step} failed: ${err.status || ''} ${err.message}`);
   const session = await tryJson('/lol-champ-select/v1/session');
   try {
     fs.writeFileSync(path.join(DATA_DIR, 'debug-last-error.json'),
@@ -285,6 +302,157 @@ async function doLockIn(championId, actionId) {
   throw Object.assign(new Error(lastError ? `NOT locked — client said: ${lastError.message}` : 'NOT locked — the client did not accept it'), { status: 502 });
 }
 
+// ---------- runes and summoner spells ----------
+const RUNE_PAGE_PREFIX = 'LR · '; // pages League Remote creates; reused instead of filling up slots
+const assetUrl = p => (p ? `/asset?p=${encodeURIComponent(p)}` : null);
+let gameData = null; // perks, rune trees and spells, loaded once per client connection
+
+async function getGameData() {
+  if (!gameData) {
+    const [perks, styles, spells] = await Promise.all([
+      lcuJson('GET', '/lol-perks/v1/perks'),
+      lcuJson('GET', '/lol-perks/v1/styles'),
+      lcuJson('GET', '/lol-game-data/assets/v1/summoner-spells.json'),
+    ]);
+    gameData = { perks: new Map(perks.map(p => [p.id, p])), styles: new Map(styles.map(s => [s.id, s])), spells };
+  }
+  return gameData;
+}
+
+async function gameInfo() {
+  const s = await tryJson('/lol-gameflow/v1/session');
+  return { mapId: s?.map?.id || 11, gameMode: s?.map?.gameMode || s?.gameData?.queue?.gameMode || 'CLASSIC' };
+}
+
+function describePage(page, gd) {
+  const perk = id => { const p = gd?.perks.get(id); return p ? { id, name: p.name, icon: assetUrl(p.iconPath) } : null; };
+  const style = id => { const s = gd?.styles.get(id); return s ? { id, name: s.name, icon: assetUrl(s.iconPath) } : null; };
+  return {
+    id: page.id, name: page.name, editable: !!page.isEditable,
+    keystone: perk(page.selectedPerkIds?.[0]),
+    primary: style(page.primaryStyleId), secondary: style(page.subStyleId),
+    runes: (page.selectedPerkIds || []).slice(1, 6).map(perk).filter(Boolean),
+  };
+}
+
+const spellInfo = (id, gd) => {
+  const s = gd?.spells.find(x => x.id === id);
+  return s ? { id, name: s.name, icon: assetUrl(s.iconPath) } : (id ? { id, name: `Spell ${id}`, icon: null } : null);
+};
+
+// Riot's recommended pages for a champion/role, as complete pages (6 runes + 3 shards).
+async function recommendedFor(championId, position, mapId) {
+  const pos = (position || '').toUpperCase() || 'NONE';
+  const list = await tryJson(`/lol-perks/v1/recommended-pages/champion/${championId}/position/${pos}/map/${mapId}`);
+  return (Array.isArray(list) ? list : []).map(r => ({
+    primaryStyleId: r.primaryPerkStyleId ?? r.primaryStyleId,
+    subStyleId: r.secondaryPerkStyleId ?? r.subStyleId,
+    selectedPerkIds: (r.perks || r.selectedPerkIds || []).map(p => (typeof p === 'object' ? p.id : p)).filter(Number.isFinite),
+  })).filter(r => r.primaryStyleId && r.subStyleId && r.selectedPerkIds.length === 9).slice(0, 4);
+}
+
+async function mySelection() {
+  const { sess } = await readSession();
+  const me = (sess.myTeam || []).find(p => p.cellId === sess.localPlayerCellId) || {};
+  return { me, championId: me.championId || me.championPickIntent || 0, position: me.assignedPosition || '' };
+}
+
+const until = async (check, tries = 6, gap = 200) => {
+  for (let i = 0; i < tries; i++) { const v = await check(); if (v) return v; await sleep(gap); }
+  return null;
+};
+
+async function getLoadout() {
+  const gd = await getGameData();
+  const { me, championId, position } = await mySelection();
+  const info = await gameInfo();
+  const [pages, current] = await Promise.all([lcuJson('GET', '/lol-perks/v1/pages'), tryJson('/lol-perks/v1/currentpage')]);
+  const recs = championId ? await recommendedFor(championId, position, info.mapId) : [];
+  const champName = championId && (await getChampions().catch(() => [])).find(c => c.id === championId)?.name;
+  return {
+    spells: {
+      spell1Id: me.spell1Id || 0, spell2Id: me.spell2Id || 0,
+      available: gd.spells
+        .filter(s => s.id > 0 && (!s.gameModes?.length || s.gameModes.includes(info.gameMode)))
+        .map(s => ({ id: s.id, name: s.name, icon: assetUrl(s.iconPath) })),
+    },
+    runes: {
+      currentId: current?.id ?? null,
+      championId, championName: champName || '', position: position.toLowerCase(),
+      recommended: recs.map((r, index) => ({ index, ...describePage({ ...r, id: `rec${index}`, name: 'Recommended' }, gd) })),
+      pages: pages
+        .filter(p => p.isValid !== false)
+        .sort((a, b) => Number(b.isEditable) - Number(a.isEditable))
+        .map(p => describePage(p, gd)),
+    },
+  };
+}
+
+async function setSpells(spell1Id, spell2Id) {
+  if (!spell1Id || !spell2Id || spell1Id === spell2Id) throw Object.assign(new Error('Pick two different spells'), { status: 400 });
+  await mySelection(); // must be in champ select
+  try {
+    await lcuJson('PATCH', '/lol-champ-select/v1/session/my-selection', { spell1Id, spell2Id });
+  } catch (e) { await logFailure('set spells', e); throw e; }
+  const ok = await until(async () => { const { me } = await mySelection(); return me.spell1Id === spell1Id && me.spell2Id === spell2Id; });
+  if (!ok) throw Object.assign(new Error('NOT changed — the client kept your old spells'), { status: 502 });
+  return { spell1Id, spell2Id };
+}
+
+async function currentPageIs(pageId, perkIds) {
+  const cur = await tryJson('/lol-perks/v1/currentpage');
+  return cur && cur.id === pageId && (!perkIds || perkIds.every((id, i) => cur.selectedPerkIds?.[i] === id)) ? cur : null;
+}
+
+async function setRunePage(pageId) {
+  await mySelection();
+  try {
+    await lcuJson('PUT', '/lol-perks/v1/currentpage', pageId);
+  } catch (e) { await logFailure('set rune page', e); throw e; }
+  const cur = await until(() => currentPageIs(pageId));
+  if (!cur) throw Object.assign(new Error('NOT changed — the client kept your old rune page'), { status: 502 });
+  return describePage(cur, gameData);
+}
+
+// Applies a recommended page: reuses a page League Remote made before, else creates one; if every
+// slot is full it only replaces one of your pages when the phone has confirmed which.
+async function applyRecommended(index, overwritePageId) {
+  const { championId, position } = await mySelection();
+  if (!championId) throw Object.assign(new Error('Hover or lock a champion first'), { status: 409 });
+  const rec = (await recommendedFor(championId, position, (await gameInfo()).mapId))[index];
+  if (!rec) throw Object.assign(new Error('Recommended runes changed — open the list again'), { status: 409 });
+  const champName = (await getChampions().catch(() => [])).find(c => c.id === championId)?.name || 'Recommended';
+  const body = { name: `${RUNE_PAGE_PREFIX}${champName}`, ...rec, current: true };
+  const pages = await lcuJson('GET', '/lol-perks/v1/pages');
+  const target = pages.find(p => p.isEditable && p.name?.startsWith(RUNE_PAGE_PREFIX)) ||
+    (overwritePageId && pages.find(p => p.isEditable && p.id === overwritePageId));
+  let pageId;
+  try {
+    if (target) {
+      await lcuJson('PUT', `/lol-perks/v1/pages/${target.id}`, { ...target, ...body, id: target.id });
+      pageId = target.id;
+    } else {
+      try {
+        pageId = (await lcuJson('POST', '/lol-perks/v1/pages', body))?.id;
+      } catch (e) {
+        const editable = pages.filter(p => p.isEditable);
+        if (!editable.length) throw e;
+        const current = await tryJson('/lol-perks/v1/currentpage');
+        const suggest = editable.find(p => p.id === current?.id) || editable[0];
+        throw Object.assign(new Error(`All rune page slots are full. Replace "${suggest.name}"?`),
+          { status: 409, extra: { needsOverwrite: true, pageId: suggest.id, pageName: suggest.name } });
+      }
+    }
+    if (pageId) await lcuJson('PUT', '/lol-perks/v1/currentpage', pageId).catch(() => {});
+  } catch (e) {
+    if (!e.extra) await logFailure('apply recommended runes', e);
+    throw e;
+  }
+  const cur = pageId && await until(() => currentPageIs(pageId, rec.selectedPerkIds));
+  if (!cur) throw Object.assign(new Error('NOT applied — the client did not take the rune page'), { status: 502 });
+  return describePage(cur, gameData);
+}
+
 // ---------- state loop ----------
 // Auto-lock starts this long before the timer ends: the state loop runs every 0.5 s in champ
 // select and a lock (with retries and checks) takes at most ~1.5 s, so it always finishes in time.
@@ -307,7 +475,7 @@ async function refresh() {
   if (!client) {
     client = await findClient();
     if (!client) { setState({ connected: false }); return; }
-    summoner = null; champions = null; iconCache = new Map();
+    summoner = null; champions = null; gameData = null; iconCache = new Map();
   }
 
   let phase;
@@ -373,6 +541,12 @@ async function refresh() {
           .then(() => console.log(`Auto-locked your ${t.type} before the timer ran out.`))
           .catch(e => console.log(`Auto-lock FAILED: ${e.message}`));
       }
+      // Current spells and rune page, for the loadout bar on the phone.
+      const gd = await getGameData().catch(() => null);
+      const me = (sess.myTeam || []).find(p => p.cellId === sess.localPlayerCellId) || {};
+      cs.spells = [spellInfo(me.spell1Id, gd), spellInfo(me.spell2Id, gd)];
+      const page = await tryJson('/lol-perks/v1/currentpage');
+      cs.runePage = page ? describePage(page, gd) : null;
       next.champSelect = cs;
     }
   }
@@ -425,6 +599,10 @@ const api = {
   'POST /api/play-again': () => lcuJson('POST', '/lol-lobby/v2/play-again'),
   'POST /api/hover': ({ championId, actionId }) => hover(Number(championId), Number(actionId) || 0),
   'POST /api/lock': ({ championId, actionId }) => lockIn(Number(championId) || 0, Number(actionId) || 0),
+  'GET /api/loadout': () => getLoadout(),
+  'POST /api/spells': ({ spell1Id, spell2Id }) => setSpells(Number(spell1Id), Number(spell2Id)),
+  'POST /api/runes/page': ({ pageId }) => setRunePage(Number(pageId)),
+  'POST /api/runes/recommended': ({ index, overwritePageId }) => applyRecommended(Number(index), Number(overwritePageId) || 0),
   'POST /api/settings': (body) => {
     for (const k of ['autoAccept', 'autoLock']) if (typeof body[k] === 'boolean') config[k] = body[k];
     saveConfig();
@@ -437,6 +615,7 @@ const ACTION_NAMES = {
   '/api/accept': 'accept', '/api/decline': 'decline', '/api/lobby': 'open lobby', '/api/roles': 'set roles',
   '/api/queue/start': 'find match', '/api/queue/stop': 'leave queue', '/api/play-again': 'play again',
   '/api/hover': 'hover', '/api/lock': 'lock in', '/api/settings': 'settings',
+  '/api/spells': 'set summoner spells', '/api/runes/page': 'switch rune page', '/api/runes/recommended': 'apply recommended runes',
 };
 
 const STATIC = {
@@ -447,6 +626,11 @@ const STATIC = {
   '/icon-512.png': ['icon-512.png', 'image/png'],
   '/apple-touch-icon.png': ['apple-touch-icon.png', 'image/png'],
 };
+const FONTS = ['cinzel-latin-600-normal', 'cinzel-latin-700-normal', 'poppins-latin-500-normal', 'poppins-latin-600-normal', 'poppins-latin-700-normal', 'inter-latin-400-normal', 'inter-latin-500-normal', 'inter-latin-600-normal', 'inter-latin-700-normal'];
+for (const f of FONTS) STATIC[`/fonts/${f}.woff2`] = [`fonts/${f}.woff2`, 'font/woff2'];
+for (const f of ['bg.jpg', 'band.jpg']) STATIC[`/art/${f}`] = [`art/${f}`, 'image/jpeg'];
+STATIC['/art/crystal.webp'] = ['art/crystal.webp', 'image/webp'];
+for (const f of ['btn-teal.webp', 'btn-dark.webp', 'btn-red.webp']) STATIC[`/art/${f}`] = [`art/${f}`, 'image/webp'];
 
 function send(res, status, body, type = 'application/json') {
   const buf = Buffer.isBuffer(body) ? body : Buffer.from(type === 'application/json' ? JSON.stringify(body) : body);
@@ -486,6 +670,11 @@ const server = http.createServer(async (req, res) => {
   try {
     if (STATIC[pathname] && req.method === 'GET') {
       const [file, type] = STATIC[pathname];
+      if (type === 'font/woff2' || type === 'image/jpeg' || file.startsWith('art/')) { // fonts and art never change within a version: let the phone cache them
+        const buf = readPublic(file);
+        res.writeHead(200, { 'Content-Type': type, 'Content-Length': buf.length, 'Cache-Control': 'public, max-age=604800' });
+        return res.end(buf);
+      }
       return send(res, 200, readPublic(file), type);
     }
 
@@ -498,6 +687,33 @@ const server = http.createServer(async (req, res) => {
       const page = readPublic('pair.html').toString('utf8')
         .replace('__CODES__', JSON.stringify(codes).replace(/</g, '\\u003c'));
       return send(res, 200, page, 'text/html; charset=utf-8');
+    }
+
+    // Live status for the PC's QR/status page (this PC only).
+    if (pathname === '/local-status' && req.method === 'GET') {
+      if (!isLocal(req)) return send(res, 403, { error: 'This PC only' });
+      return send(res, 200, {
+        version: VERSION, update, key: config.key, urls: lanUrls(),
+        league: { connected: !!state.connected, phase: state.phase || '', summoner: state.summoner || '' },
+        phone: { connected: Date.now() - phone.lastSeen < 6000, ever: !!phone.ip || !!config.everPaired, ip: phone.ip },
+        settings: { autoAccept: config.autoAccept, autoLock: config.autoLock },
+        recent: recentLog.slice(-6),
+      });
+    }
+
+    // Rune and spell icons, proxied from the client's game data (no key needed, like champion icons).
+    if (pathname === '/asset' && req.method === 'GET') {
+      const p = new URL(req.url, 'http://x').searchParams.get('p') || '';
+      if (!p.startsWith('/lol-game-data/assets/') || p.includes('..')) return send(res, 400, { error: 'bad asset path' });
+      let buf = iconCache.get(p);
+      if (!buf) {
+        const r = await lcu('GET', p);
+        if (r.status !== 200) return send(res, 404, { error: 'no asset' });
+        buf = r.buf;
+        if (iconCache.size < 800) iconCache.set(p, buf);
+      }
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': buf.length, 'Cache-Control': 'public, max-age=86400' });
+      return res.end(buf);
     }
 
     // Champion icons, proxied from the client (no key needed — <img> can't send headers).
@@ -517,7 +733,10 @@ const server = http.createServer(async (req, res) => {
     const handler = api[`${req.method} ${pathname}`];
     if (!handler) return send(res, 404, { error: 'Not found' });
     if (!keyOk(req)) return send(res, 401, { error: 'Wrong or missing pairing code' });
-    if (!isLocal(req)) phone = { ip: req.socket.remoteAddress.replace('::ffff:', ''), lastSeen: Date.now() };
+    if (!isLocal(req)) {
+      phone = { ip: req.socket.remoteAddress.replace('::ffff:', ''), lastSeen: Date.now() };
+      if (!config.everPaired) { config.everPaired = true; saveConfig(); }
+    }
     const body = req.method === 'POST' ? await readBody(req) : {};
     const result = await handler(body);
     if (req.method === 'POST' && !['/api/hover', '/api/settings', '/api/roles'].includes(pathname)) {
@@ -528,7 +747,7 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, result ?? { ok: true });
   } catch (e) {
     if (pathname.startsWith('/api/') && req.method === 'POST') console.log(`Phone: ${ACTION_NAMES[pathname] || pathname} failed — ${e.message}`);
-    return send(res, e.status && e.status < 600 ? e.status : 500, { error: e.message });
+    return send(res, e.status && e.status < 600 ? e.status : 500, { error: e.message, ...(e.extra || {}) });
   }
 });
 
@@ -696,7 +915,8 @@ function installUpdate() {
   console.log(`Starting League Remote ${update.version}…`);
   // The new version takes over from this one (see closeRecordedInstance). This one keeps
   // serving until then, and puts the old exe back if the new one never shows up.
-  spawn('cmd.exe', ['/d', '/s', '/c', `start "" "${exe}"`], { windowsVerbatimArguments: true, detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  if (BACKGROUND) spawn(exe, ['--background'], { detached: true, windowsHide: true, stdio: 'ignore' }).unref(); // straight back into the tray
+  else spawn('cmd.exe', ['/d', '/s', '/c', `start "" "${exe}"`], { windowsVerbatimArguments: true, detached: true, stdio: 'ignore', windowsHide: true }).unref();
   const target = update.version;
   setTimeout(() => {
     try {
@@ -728,15 +948,33 @@ function onListening() {
     });
     tick();
     setInterval(tick, 500);
-  } else {
-    console.log('\n  League Remote is running.\n');
-    console.log('  On your phone (same Wi-Fi), open:');
-    for (const u of lanUrls()) console.log(`    ${u}`);
-    console.log(`\n  Pairing code: ${config.key}`);
-    console.log(`  QR code to scan: http://localhost:${port}/pair\n`);
+  } else if (!BACKGROUND) { // plain banner (not an event, so it stays out of "Recent")
+    logToConsole('\n  League Remote is running.\n');
+    logToConsole('  On your phone (same Wi-Fi), open:');
+    for (const u of lanUrls()) logToConsole(`    ${u}`);
+    logToConsole(`\n  Pairing code: ${config.key}`);
+    logToConsole(`  QR code to scan: http://localhost:${port}/pair\n`);
   }
-  if (process.argv.includes('--open')) {
-    const url = `http://localhost:${port}/pair`;
-    exec(process.platform === 'win32' ? `start "" "${url}"` : `open "${url}"`);
-  }
+  if (BACKGROUND) startTray();
+  // First run (no phone paired yet): show the QR code right away.
+  if (process.argv.includes('--open') || (BACKGROUND && !config.everPaired)) openPairPage();
+}
+
+function openPairPage() {
+  const url = `http://localhost:${port}/pair`;
+  exec(process.platform === 'win32' ? `start "" "${url}"` : `open "${url}"`);
+}
+
+function startTray() {
+  const iconPath = path.join(DATA_DIR, 'tray.ico');
+  try { fs.writeFileSync(iconPath, sea ? Buffer.from(sea.getAsset('icon.ico')) : fs.readFileSync(path.join(__dirname, 'assets', 'icon.ico'))); } catch {}
+  const statusPath = path.join(DATA_DIR, 'tray-status.txt');
+  const writeStatus = () => {
+    const league = state.connected ? 'League ✓' : 'League not found';
+    const phoneOk = Date.now() - phone.lastSeen < 6000 ? 'Phone ✓' : 'Phone not connected';
+    try { fs.writeFileSync(statusPath, `League Remote · ${league} · ${phoneOk}`); } catch {}
+  };
+  writeStatus();
+  setInterval(writeStatus, 2000).unref();
+  tray.startTray({ iconPath, statusPath, onShow: openPairPage, onQuit: () => process.exit(0) });
 }

@@ -3,131 +3,310 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#0a0e13">
+<meta name="theme-color" content="#010a13">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="LoL Remote">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preload" href="/fonts/cinzel-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/poppins-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/inter-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/art/bg.jpg" as="image">
 <title>League Remote</title>
 <style>
+  /* Concept A "Hextech Premium" — measured from the approved concept (410 px wide screens, scaled to 390).
+     Fonts are bundled (SIL Open Font License) so they work offline. */
+  @font-face { font-family: 'Cinzel'; src: url(/fonts/cinzel-latin-600-normal.woff2) format('woff2'); font-weight: 600; font-display: swap; }
+  @font-face { font-family: 'Cinzel'; src: url(/fonts/cinzel-latin-700-normal.woff2) format('woff2'); font-weight: 700; font-display: swap; }
+  @font-face { font-family: 'Poppins'; src: url(/fonts/poppins-latin-500-normal.woff2) format('woff2'); font-weight: 500; font-display: swap; }
+  @font-face { font-family: 'Poppins'; src: url(/fonts/poppins-latin-600-normal.woff2) format('woff2'); font-weight: 600; font-display: swap; }
+  @font-face { font-family: 'Poppins'; src: url(/fonts/poppins-latin-700-normal.woff2) format('woff2'); font-weight: 700; font-display: swap; }
+  @font-face { font-family: 'Inter'; src: url(/fonts/inter-latin-400-normal.woff2) format('woff2'); font-weight: 400; font-display: swap; }
+  @font-face { font-family: 'Inter'; src: url(/fonts/inter-latin-500-normal.woff2) format('woff2'); font-weight: 500; font-display: swap; }
+  @font-face { font-family: 'Inter'; src: url(/fonts/inter-latin-600-normal.woff2) format('woff2'); font-weight: 600; font-display: swap; }
+  @font-face { font-family: 'Inter'; src: url(/fonts/inter-latin-700-normal.woff2) format('woff2'); font-weight: 700; font-display: swap; }
+
   :root {
-    --bg: #0a0e13; --panel: #121a24; --panel-2: #1a2532; --line: #263445;
-    --text: #e8e2d4; --muted: #8b98a8; --gold: #c8aa6e; --gold-hi: #f0e6d2;
-    --teal: #0ac8b9; --red: #e84057; --green: #2fbf71;
+    --bg: #030c15; --line: #1d3142; --tile-line: rgba(200, 170, 110, .42);
+    --text: #e6e0d4; --muted: #9a9ea0; --gold: #c9ab6f; --gold-2: #8a6a33; --gold-3: #4a3a18; --gold-hi: #f2e6c8; --gold-title: #dcc48c;
+    --teal: #12c9bb; --teal-hi: #dffcfb; --red: #e84057; --green: #3ed37e;
+    --display: 'Cinzel', Georgia, serif;          /* titles: Roman small caps, like the reference */
+    --button: 'Poppins', system-ui, sans-serif;   /* button labels */
+    --body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     --safe-b: env(safe-area-inset-bottom, 0px);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-  body { min-height: 100dvh; padding-top: env(safe-area-inset-top, 0px); }
-  button { font: inherit; color: inherit; border: 0; cursor: pointer; }
+  html { background: radial-gradient(130% 70% at 50% 0%, #0b2233 0%, #04101b 55%, #030c15 100%) fixed, var(--bg); }
+  html, body { margin: 0; color: var(--text); font: 500 15px/1.4 var(--body); -webkit-font-smoothing: antialiased; }
+  body { min-height: 100dvh; padding-top: env(safe-area-inset-top, 0px); background: transparent; position: relative; z-index: 0; }
+  /* Painted landscape behind each screen: faint at the top of the lobby, full behind "Match found", none in champ select. */
+  body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: url(/art/bg.jpg) center bottom / cover no-repeat; opacity: .5; }
+  body[data-view="lobby"]::before, body[data-view="home"]::before, body[data-view="queue"]::before {
+    background: url(/art/band.jpg) center 40px / 160% auto no-repeat; opacity: .55;
+    -webkit-mask-image: linear-gradient(180deg, transparent 4%, #000 14%, #000 26%, transparent 46%); mask-image: linear-gradient(180deg, transparent 4%, #000 14%, #000 26%, transparent 46%);
+  }
+  body[data-view="ready"]::before {
+    background: url(/art/band.jpg) center 150px / 230% auto no-repeat; opacity: 1;
+    -webkit-mask-image: linear-gradient(180deg, transparent 12%, #000 28%, #000 88%, transparent 100%); mask-image: linear-gradient(180deg, transparent 12%, #000 28%, #000 88%, transparent 100%);
+  }
+  body[data-view="champ"]::before { opacity: .1; }
+  button { font: inherit; color: inherit; border: 0; cursor: pointer; background: none; }
   .hidden { display: none !important; }
+  svg.i { width: 22px; height: 22px; display: block; flex: none; }
 
-  header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 5; }
-  header h1 { font-size: 16px; margin: 0; letter-spacing: .04em; color: var(--gold-hi); }
-  #who { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--red); flex: none; }
-  .dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
-  .icon-btn { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; width: 38px; height: 38px; font-size: 18px; }
+  /* thin gold frame around the whole screen, with corner and top-center ornaments */
+  .screen-frame { position: fixed; inset: 4px; z-index: 30; pointer-events: none; border: 1px solid rgba(201, 171, 111, .38); border-radius: 14px; }
+  .screen-frame::before, .screen-frame::after { content: ''; position: absolute; width: 26px; height: 26px; border: 2px solid var(--gold); }
+  .screen-frame::before { top: -2px; left: -2px; border-right: 0; border-bottom: 0; border-top-left-radius: 14px; }
+  .screen-frame::after { top: -2px; right: -2px; border-left: 0; border-bottom: 0; border-top-right-radius: 14px; }
 
-  main { padding: 16px; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px; text-align: center; }
-  .card h2 { margin: 0 0 6px; font-size: 22px; color: var(--gold-hi); }
-  .card p { margin: 0; color: var(--muted); }
-  .big { font-size: 44px; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--gold-hi); margin: 10px 0; }
+  /* header */
+  header { position: sticky; top: 0; z-index: 5; display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 6px; padding: 14px 14px 14px; background: linear-gradient(180deg, rgba(3, 12, 21, .96), rgba(3, 12, 21, .82)); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  header::after { content: ''; position: absolute; left: 40px; right: 40px; bottom: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--gold-2) 15%, var(--gold) 50%, var(--gold-2) 85%, transparent); }
+  header::before { content: ''; position: absolute; left: 50%; bottom: -4px; width: 7px; height: 7px; transform: translateX(-50%) rotate(45deg); background: var(--bg); border: 1px solid var(--gold); z-index: 1; }
+  header .logo { width: 40px; height: 40px; filter: drop-shadow(0 0 6px rgba(201, 171, 111, .35)); }
+  .brand { text-align: center; min-width: 0; }
+  header h1 { margin: 0; font: 700 19px/1.1 var(--display); letter-spacing: .05em; color: var(--gold-title); }
+  .status { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 5px; min-width: 0; }
+  #who { color: var(--text); font-weight: 400; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--red); flex: none; box-shadow: 0 0 6px rgba(232, 64, 87, .7); }
+  .dot.on { background: var(--green); box-shadow: 0 0 8px rgba(62, 211, 126, .9); }
+  .icon-btn { width: 44px; height: 44px; display: grid; place-items: center; color: var(--gold); }
+  .icon-btn svg.i { width: 27px; height: 27px; }
 
-  .btn { display: block; width: 100%; padding: 16px; border-radius: 12px; font-weight: 700; font-size: 17px; letter-spacing: .06em; text-transform: uppercase; margin-top: 12px; background: var(--panel-2); border: 1px solid var(--line); }
-  .btn:disabled { opacity: .4; }
-  .btn.primary { background: linear-gradient(#1e7a74, #0b5b56); border-color: var(--teal); color: #fff; }
-  .btn.gold { background: linear-gradient(#c8aa6e, #8f7340); border-color: var(--gold-hi); color: #111; }
-  .btn.danger { background: transparent; border-color: var(--red); color: var(--red); }
-  .btn.huge { padding: 28px; font-size: 26px; border-radius: 18px; }
-  .btn:active:not(:disabled) { transform: scale(.98); }
+  main { padding: 18px 14px 20px; }
 
-  .queues { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
-  .queues button { padding: 12px 8px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); font-size: 14px; }
-  .queues button.on { border-color: var(--gold); color: var(--gold-hi); }
+  /* screens sit directly on the art (no boxed panels) */
+  .card { position: relative; text-align: center; padding: 6px 0 0; }
+  .card h2 { margin: 0 0 6px; font: 700 31px/1.15 var(--display); letter-spacing: .02em; color: var(--gold-title); text-shadow: 0 2px 12px rgba(0, 0, 0, .7); }
+  .card p { margin: 0; font-size: 16px; font-weight: 400; color: var(--text); }
+  .big { font: 700 44px/1 var(--display); color: var(--gold-hi); font-variant-numeric: tabular-nums; }
 
-  #roles { margin-top: 16px; text-align: left; }
-  .role-row + .role-row { margin-top: 12px; }
-  .role-lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
-  .role-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-  .role-btns button { padding: 10px 4px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); font-size: 14px; }
-  .role-btns button.on { border-color: var(--teal); color: #fff; background: #0b5b56; }
+  /* section titles: "MAIN ROLE ————" */
+  .role-lbl, .lo-sub { display: flex; align-items: center; gap: 12px; font: 700 16px/1 var(--display); letter-spacing: .03em; color: var(--gold); text-align: left; }
+  .role-lbl::after, .lo-sub::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--gold-2), rgba(138, 106, 51, .15)); }
 
-  .bar { height: 8px; border-radius: 4px; background: var(--panel-2); overflow: hidden; margin: 14px 0 4px; }
-  .bar > div { height: 100%; background: var(--teal); transition: width .25s linear; }
-  .bar.warn > div { background: var(--red); }
+  /* ornate buttons: painted art (Codex) as a 9-slice border-image: the glowing ends keep their shape, only the plain middle stretches */
+  .btn {
+    --h: 64px; position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: var(--h); margin-top: 14px; padding: 0;
+    font: 700 18px/1 var(--button); letter-spacing: .04em; text-transform: uppercase; color: var(--gold-hi); text-shadow: 0 1px 2px rgba(0, 0, 0, .6);
+    border-style: solid; border-color: transparent; border-width: calc(var(--h) / 2) calc(var(--h) * .55);
+    border-image: url(/art/btn-dark.webp) 100 110 fill / calc(var(--h) / 2) calc(var(--h) * .55) stretch;
+    white-space: nowrap; transition: filter .15s, transform .08s;
+  }
+  .btn:disabled { filter: grayscale(.9) brightness(.55); }
+  .btn:active:not(:disabled) { transform: translateY(1px); filter: brightness(1.15); }
+  .btn.primary { color: #f4ffff; border-image-source: url(/art/btn-teal.webp); text-shadow: 0 0 12px rgba(18, 201, 187, .7), 0 1px 2px rgba(0, 0, 0, .5); }
+  .btn.ban { color: #fff2f4; border-image-source: url(/art/btn-red.webp); }
+  .btn.huge { --h: 86px; font-size: 28px; }
+  .btn.ghost { --h: 62px; font-weight: 500; font-size: 19px; text-transform: none; letter-spacing: 0; }
+  .btn.danger { color: #ffa3ae; }
+  #cancel-btn, #decline-btn { width: 224px; margin-left: auto; margin-right: auto; }
+
+  /* role tiles + queue list */
+  #roles { margin-top: 20px; }
+  .role-row + .role-row { margin-top: 18px; }
+  .role-lbl { margin-bottom: 12px; }
+  .role-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .queues { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+  .role-btns button, .queues button { border: 1px solid var(--tile-line); border-radius: 6px; background: linear-gradient(180deg, rgba(17, 33, 47, .92), rgba(7, 16, 25, .92)); color: var(--text); }
+  .role-btns button { height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; font: 400 15px/1 var(--body); }
+  .role-btns button:disabled { opacity: .4; }
+  .role-btns button svg.i { width: 30px; height: 30px; }
+  .role-btns button.on { color: #fff; border: 1.5px solid #f0dc9c; background: radial-gradient(ellipse at 50% 55%, #083b43 0%, #0a4f57 55%, #0f7c82 100%); box-shadow: 0 0 12px rgba(232, 210, 154, .35), 0 0 18px rgba(18, 201, 187, .35), inset 0 0 16px rgba(60, 230, 215, .35); }
+  .queues button { height: 50px; display: flex; align-items: center; gap: 10px; padding: 0 12px; text-align: left; font: 400 14px/1.15 var(--body); white-space: nowrap; }
+  .queues button svg.i { width: 26px; height: 26px; }
+  .queues button.on { color: #fff; border: 1.5px solid #e8d29a; box-shadow: 0 0 12px rgba(232, 210, 154, .25), inset 0 0 10px rgba(232, 210, 154, .08); }
+  #find-btn { margin-top: 26px; }
+
+  /* queue timer ring */
+  .ring { position: relative; width: 180px; height: 180px; margin: 20px auto 14px; display: grid; place-items: center; }
+  .ring::before { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(201, 171, 111, .35); box-shadow: inset 0 0 30px rgba(18, 201, 187, .12); }
+  .ring::after { content: ''; position: absolute; inset: -2px; border-radius: 50%; border: 4px solid transparent; border-top-color: var(--teal); border-right-color: rgba(18, 201, 187, .35); animation: spin 1.8s linear infinite; filter: drop-shadow(0 0 6px rgba(18, 201, 187, .6)); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* match found */
+  #v-ready { padding-top: 22px; }
+  #v-ready h2 { font-size: 32px; }
+  #ready-left { color: #c7b07e !important; font-size: 17px !important; font-weight: 400; }
+  .emblem { width: 300px; height: 300px; margin: 8px auto 6px; background: url(/art/crystal.webp) center / contain no-repeat; animation: glow 2.2s ease-in-out infinite; }
+  @keyframes glow { 0%, 100% { filter: brightness(.95); } 50% { filter: brightness(1.18) drop-shadow(0 0 16px rgba(18, 201, 187, .4)); } }
+  #accept-btn { --h: 128px; font: 700 min(46px, 11.2vw)/1 var(--display); letter-spacing: .04em; text-transform: uppercase; }
+  /* "ACCEPTED ✓" is much longer than "ACCEPT": smaller so it stays inside the frame on one line */
+  #accept-btn:disabled { filter: none; opacity: .9; font-size: min(28px, 6.6vw); }
+  @keyframes pulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.2) drop-shadow(0 0 14px rgba(18, 201, 187, .7)); } }
+  .accept-ring:has(.pulse) { animation: pulse 1.3s infinite; }
+  #decline-btn { margin-top: 18px; }
 
   /* champ select */
-  #cs-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-  #cs-title { font-size: 18px; font-weight: 700; color: var(--gold-hi); }
-  #cs-title.go { color: var(--teal); }
-  #cs-timer { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 3ch; text-align: right; }
-  #cs-timer.warn { color: var(--red); }
+  #cs-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: -4px 0 6px; }
+  #cs-title { font: 700 25px/1.15 var(--display); letter-spacing: .02em; color: var(--gold-title); }
+  #cs-title.go { color: var(--gold-title); }
+  #cs-timer {
+    --p: 1; width: 76px; height: 76px; flex: none; display: grid; place-items: center; border-radius: 50%;
+    font: 500 30px/1 var(--body); font-variant-numeric: tabular-nums; color: #fff;
+    background: radial-gradient(closest-side, #061420 80%, transparent 82%), conic-gradient(var(--teal) calc(var(--p) * 1turn), rgba(18, 201, 187, .12) 0);
+    box-shadow: 0 0 16px rgba(18, 201, 187, .35), inset 0 0 0 1px rgba(201, 171, 111, .3);
+  }
+  #cs-timer:empty { visibility: hidden; }
+  #cs-timer.warn { background: radial-gradient(closest-side, #1c0a12 80%, transparent 82%), conic-gradient(var(--red) calc(var(--p) * 1turn), rgba(232, 64, 87, .18) 0); box-shadow: 0 0 18px rgba(232, 64, 87, .55); }
   .teams { display: grid; gap: 8px; margin-bottom: 12px; }
-  .row { display: flex; gap: 6px; align-items: center; }
-  .row .lbl { width: 42px; font-size: 11px; color: var(--muted); text-transform: uppercase; flex: none; }
-  .face { width: 40px; height: 40px; border-radius: 50%; background: var(--panel-2) center/cover; border: 2px solid var(--line); flex: none; position: relative; }
-  .face.me { border-color: var(--gold); }
-  .face.intent { opacity: .55; }
-  .face.ban { width: 28px; height: 28px; filter: grayscale(1); opacity: .7; }
-  .face .pos { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); font-size: 9px; background: var(--bg); padding: 0 3px; border-radius: 4px; color: var(--muted); }
+  .teams > .row { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+  .teams > .row > .lbl { font: 700 15px/1 var(--display); letter-spacing: .03em; color: var(--gold); }
+  #t-mine, #t-theirs, #t-bans { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  #t-mine { padding-bottom: 18px; }
+  .face { position: relative; aspect-ratio: 1; width: 100%; background: #0b1823 center/cover; border: 2px solid #b8975a; border-radius: 3px; box-shadow: 0 2px 8px rgba(0, 0, 0, .6); }
+  .face.me { border-color: #cdeff0; box-shadow: 0 0 14px rgba(18, 201, 187, .6); }
+  .face.intent { opacity: .6; }
+  .face.ban { width: 54px; justify-self: center; filter: grayscale(1) brightness(.75); border-color: #6d6a62; }
+  .face .pos { position: absolute; left: -6px; right: -6px; bottom: -20px; text-align: center; font: 400 14px/1 var(--body); color: var(--text); }
 
-  #search { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 16px; outline: none; }
+  /* loadout chips */
+  .loadout { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 4px 0 12px; }
+  .lo-btn { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 10px; min-width: 0; text-align: left; border: 1px solid var(--tile-line); border-radius: 8px; background: linear-gradient(180deg, rgba(17, 33, 47, .92), rgba(7, 16, 25, .92)); }
+  .lo-btn:active { border-color: var(--gold); }
+  .lo-txt { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .lo-txt small { font: 500 13.5px/1.15 var(--body); color: var(--text); }
+  .lo-txt small::after { content: ':'; }
+  .lo-txt b { font: 500 13.5px/1.15 var(--body); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ico { width: 34px; height: 34px; border-radius: 50%; background: #0b1823; flex: none; object-fit: cover; display: block; }
+  .ico.sq { border-radius: 3px; }
+  .ico.sm { width: 26px; height: 26px; }
+  .lo-spells { display: flex; gap: 4px; flex: none; }
+
+  #search {
+    width: 100%; height: 44px; padding: 0 14px 0 44px; outline: none; font: 400 15px var(--body); color: var(--gold-hi);
+    background: rgba(4, 13, 21, .9) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c9ab6f' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M15.5 15.5 21 21'/%3E%3C/svg%3E") no-repeat 14px center / 20px;
+    border: 1px solid var(--tile-line); border-radius: 12px;
+  }
+  #search::placeholder { color: #8a9094; }
   #search:focus { border-color: var(--gold); }
-  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 10px; margin-top: 12px; padding-bottom: calc(110px + var(--safe-b)); }
-  .ch { background: none; padding: 0; text-align: center; font-size: 11px; color: var(--muted); }
-  .ch .img { aspect-ratio: 1; border-radius: 10px; border: 2px solid transparent; background: var(--panel-2); overflow: hidden; display: grid; place-items: center; font-size: 18px; font-weight: 700; color: var(--muted); position: relative; }
+  #grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 12px; padding-bottom: calc(120px + var(--safe-b)); }
+  .ch { padding: 0; position: relative; }
+  .ch .img { aspect-ratio: 1; border: 2px solid #b8975a; border-radius: 3px; background: #0b1823; overflow: hidden; display: grid; place-items: center; font: 600 18px var(--display); color: #4a5560; position: relative; box-shadow: 0 2px 8px rgba(0, 0, 0, .6); transition: transform .1s; }
+  .ch:active .img { transform: scale(.96); }
   .ch img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-  .ch .name { display: block; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ch.fav .img::after { content: '★'; position: absolute; top: 1px; right: 4px; color: var(--gold); font-size: 13px; text-shadow: 0 0 3px #000; }
-  .ch.sel .img { border-color: var(--gold-hi); box-shadow: 0 0 12px rgba(200,170,110,.6); }
-  .ch.sel .name { color: var(--gold-hi); }
+  .ch .name { display: none; }
+  .ch.fav .img::after { content: '★'; position: absolute; top: 2px; right: 4px; z-index: 1; color: var(--gold); font-size: 14px; text-shadow: 0 0 4px #000; }
+  .ch.sel .img { border-color: #cdeff0; box-shadow: 0 0 16px rgba(18, 201, 187, .7); }
   .ch.sel.pending .img { border-style: dashed; box-shadow: none; }
+  .ch.off { opacity: .25; filter: grayscale(.9); }
+  .divider { grid-column: 1 / -1; height: 1px; margin: 2px 0; background: linear-gradient(90deg, transparent, var(--gold-2), transparent); }
 
-  #stale { position: sticky; top: 63px; z-index: 7; background: var(--red); color: #fff; font-weight: 700; padding: 10px 16px; text-align: center; }
+  #stale { position: sticky; top: 82px; z-index: 7; padding: 10px 16px; text-align: center; font-weight: 700; color: #fff; background: linear-gradient(180deg, #c2304a, #8f1f33); box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
   body.stale main, body.stale #dock { opacity: .45; }
-  #sound-hint { background: var(--panel-2); color: var(--muted); font-size: 13px; padding: 8px 16px; text-align: center; border-bottom: 1px solid var(--line); }
-  .ch.off { opacity: .25; }
-  .divider { grid-column: 1 / -1; border-top: 1px solid var(--line); margin: 2px 0; }
+  /* Floats above the page and lets taps through: hiding it can never move what is being tapped. */
+  #sound-hint { position: fixed; left: 50%; bottom: calc(14px + var(--safe-b)); transform: translateX(-50%); z-index: 8; pointer-events: none; white-space: nowrap; padding: 7px 14px; font-size: 12.5px; color: var(--gold-hi); background: rgba(5, 16, 27, .92); border: 1px solid rgba(201, 171, 111, .4); border-radius: 16px; }
+  body[data-view="champ"] #sound-hint { display: none; } /* the bottom bar lives there */
 
-  #dock { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + var(--safe-b)); background: rgba(10,14,19,.96); border-top: 1px solid var(--line); display: flex; gap: 12px; align-items: center; z-index: 6; }
-  #dock .face { width: 52px; height: 52px; }
-  #dock-info { flex: 1; min-width: 0; }
-  #dock-name { font-weight: 700; color: var(--gold-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #dock-hint { font-size: 12px; color: var(--muted); }
-  #fav-btn { background: none; font-size: 24px; color: var(--muted); padding: 4px; }
-  #fav-btn.on { color: var(--gold); }
-  #lock-btn { margin: 0; width: auto; padding: 16px 20px; }
+  /* bottom bar in champ select */
+  #dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 14px calc(12px + var(--safe-b)); background: linear-gradient(180deg, rgba(9, 22, 33, .97), rgba(3, 10, 17, .99)); border-top: 1px solid rgba(201, 171, 111, .55); box-shadow: 0 -8px 30px rgba(0, 0, 0, .6); }
+  #dock .face { grid-area: 1 / 1; width: 74px; border-color: #c9ab6f; }
+  #dock-info { grid-area: 1 / 2; min-width: 0; }
+  #dock-name { padding-right: 30px; font: 700 23px/1.2 var(--display); color: var(--gold-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #dock-hint { margin-top: 4px; font-size: 13.5px; line-height: 1.4; color: var(--muted); white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+  #dock-hint::first-line { color: var(--teal); font-size: 13px; }
+  #fav-btn { grid-area: 1 / 2; justify-self: end; align-self: start; margin-top: 4px; font-size: 26px; color: var(--muted); padding: 2px; }
+  #fav-btn.on { color: #f2c94c; text-shadow: 0 0 10px rgba(242, 201, 76, .6); }
+  #lock-btn { grid-area: 1 / 3; --h: 58px; width: auto; margin: 0; font-size: 16px; letter-spacing: .03em; }
 
-  /* settings sheet */
-  #sheet { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 10; display: flex; align-items: flex-end; }
-  #sheet .inner { background: var(--panel); width: 100%; border-radius: 18px 18px 0 0; padding: 20px 16px calc(20px + var(--safe-b)); border-top: 1px solid var(--line); }
-  #sheet h3 { margin: 0 0 10px; color: var(--gold-hi); }
-  .toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
-  .toggle small { display: block; color: var(--muted); }
-  .switch { width: 52px; height: 30px; border-radius: 15px; background: var(--panel-2); border: 1px solid var(--line); position: relative; flex: none; }
-  .switch::after { content: ''; position: absolute; width: 24px; height: 24px; border-radius: 50%; background: var(--muted); top: 2px; left: 2px; transition: .2s; }
-  .switch.on { background: #0b5b56; border-color: var(--teal); }
-  .switch.on::after { left: 24px; background: #fff; }
+  /* small phones (360 px Android): keep both hint lines fully visible */
+  @media (max-width: 374px) {
+    #dock { grid-template-columns: 60px minmax(0, 1fr) auto; gap: 10px; padding-left: 10px; padding-right: 10px; }
+    #dock .face { width: 60px; }
+    #dock-name { font-size: 19px; padding-right: 26px; }
+    #fav-btn { font-size: 22px; }
+    #lock-btn { --h: 54px; font-size: 15px; }
+  }
 
-  #pair input { width: 100%; padding: 14px; font-size: 22px; text-align: center; letter-spacing: .3em; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); margin-top: 14px; text-transform: lowercase; }
+  /* sheets */
+  #sheet, #lo-sheet { position: fixed; inset: 0; z-index: 10; display: flex; align-items: flex-end; background: rgba(0, 4, 8, .72); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+  #sheet .inner, #lo-sheet .inner { position: relative; width: 100%; padding: 22px 16px calc(20px + var(--safe-b)); background: linear-gradient(180deg, rgba(14, 30, 44, .98), rgba(4, 11, 19, .99)); border-top: 1px solid var(--gold); }
+  #lo-sheet .inner { max-height: 84dvh; overflow-y: auto; }
+  #sheet .inner::before, #lo-sheet .inner::before { content: ''; position: absolute; left: 50%; top: -5px; width: 9px; height: 9px; transform: translateX(-50%) rotate(45deg); background: #0e1e2c; border: 1px solid var(--gold); }
+  #sheet h3, #lo-sheet h3 { margin: 0 0 6px; font: 700 23px/1.2 var(--display); letter-spacing: .02em; color: var(--gold-title); }
+  .toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); color: var(--gold-hi); font-weight: 600; }
+  .toggle small { display: block; color: var(--muted); font-weight: 400; margin-top: 2px; }
+  .switch { width: 52px; height: 30px; border-radius: 15px; background: #08141e; border: 1px solid var(--gold-3); position: relative; flex: none; }
+  .switch::after { content: ''; position: absolute; width: 22px; height: 22px; border-radius: 50%; background: #5d6670; top: 3px; left: 3px; transition: .2s; }
+  .switch.on { background: linear-gradient(180deg, #0f6f76, #08454b); border-color: var(--teal); }
+  .switch.on::after { left: 25px; background: var(--teal-hi); box-shadow: 0 0 8px rgba(18, 201, 187, .8); }
+  .lo-sub { margin: 18px 0 10px; }
+  .slots { display: flex; gap: 10px; margin: 10px 0 4px; }
+  .slot { flex: 1; display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 8px; background: rgba(6, 15, 24, .9); border: 1px solid var(--tile-line); color: var(--gold-hi); }
+  .slot.on { border: 1.5px solid #bfece2; box-shadow: 0 0 14px rgba(18, 201, 187, .35); }
+  .slot .key { font: 700 17px var(--display); color: var(--gold); width: 16px; }
+  .slot .lo-txt small::after, .rune-row .lo-txt small::after { content: none; }
+  .spell-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 10px; }
+  .spell { text-align: center; font: 500 12.5px/1.2 var(--body); color: var(--muted); padding: 4px 0; }
+  .spell .ico { width: 52px; height: 52px; margin: 0 auto 5px; border-radius: 3px; border: 2px solid #8a6a33; }
+  .spell.cur { color: var(--gold-hi); }
+  .spell.cur .ico { border-color: #cdeff0; box-shadow: 0 0 12px rgba(18, 201, 187, .55); }
+  .rune-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; margin-bottom: 8px; text-align: left; border-radius: 8px; border: 1px solid var(--tile-line); background: linear-gradient(180deg, rgba(17, 33, 47, .92), rgba(7, 16, 25, .92)); }
+  .rune-row.cur { border: 1.5px solid #bfece2; box-shadow: inset 0 0 16px rgba(18, 201, 187, .12); }
+  .rune-row .ico { width: 44px; height: 44px; background: radial-gradient(circle, #13283a, #060f18); }
+  .rune-row .lo-txt b { font-size: 15px; font-weight: 600; color: var(--gold-hi); }
+  .rune-row .lo-txt small { color: var(--muted); font-size: 12.5px; }
+  .rune-row .trees { display: flex; gap: 3px; margin-left: auto; flex: none; }
+  .rune-row .trees .ico { width: 24px; height: 24px; }
+  .rune-row .state { font: 700 11px var(--body); letter-spacing: .06em; text-transform: uppercase; color: var(--teal); flex: none; margin-left: 4px; }
+  #lo-sheet.busy .rune-row, #lo-sheet.busy .spell, #lo-sheet.busy .slot { pointer-events: none; opacity: .55; }
 
-  #toast { position: fixed; left: 16px; right: 16px; bottom: calc(100px + var(--safe-b)); background: var(--red); color: #fff; padding: 12px 14px; border-radius: 12px; z-index: 20; text-align: center; font-weight: 600; transition: opacity .3s; }
-  #toast.ok { background: var(--green); }
+  #pair input { width: 100%; margin-top: 16px; padding: 14px; text-align: center; text-transform: lowercase; font: 600 26px var(--button); letter-spacing: .3em; color: var(--gold-hi); background: rgba(3, 12, 20, .9); border: 1px solid var(--gold-2); border-radius: 8px; }
 
-  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(10,200,185,.7); } 50% { box-shadow: 0 0 0 14px rgba(10,200,185,0); } }
-  .pulse { animation: pulse 1.2s infinite; }
+  #toast { position: fixed; left: 14px; right: 14px; bottom: calc(112px + var(--safe-b)); z-index: 20; padding: 13px 14px; border-radius: 8px; font-weight: 600; text-align: center; color: #ffdce1; background: linear-gradient(180deg, #3a1019, #250a10); border: 1px solid rgba(232, 64, 87, .6); box-shadow: 0 10px 30px rgba(0, 0, 0, .6); transition: opacity .3s; }
+  #toast.ok { color: #dbfcec; background: linear-gradient(180deg, #0e3a2c, #08251b); border-color: rgba(62, 211, 126, .6); }
 </style>
 </head>
 <body>
+<div class="screen-frame" aria-hidden="true"></div>
 <header>
-  <span class="dot" id="dot"></span>
-  <h1>League Remote</h1>
-  <span id="who"></span>
-  <button class="icon-btn" id="settings-btn" aria-label="Settings">⚙</button>
+  <svg class="logo" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="logo-g1" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#635135"/>
+      <stop offset="1" stop-color="#372e1f"/>
+    </linearGradient>
+    <linearGradient id="logo-g2" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c7a364"/>
+      <stop offset="1" stop-color="#795326"/>
+    </linearGradient>
+    <linearGradient id="logo-g3" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f4d388"/>
+      <stop offset="1" stop-color="#b1823d"/>
+    </linearGradient>
+    <linearGradient id="logo-g4" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff2b8"/>
+      <stop offset="1" stop-color="#e4bc6d"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#logo-g1)" fill-rule="evenodd" d="M6.78 18.66 6.85 45.69 7.09 46.9 7.53 47.36 11.76 49.8 17.79 53.03 27.11 59.04 28.51 59.71 31.2 61.71 32.12 62 32.78 61.88 34.12 60.4 35.38 60.04 52.63 49.7 54.81 48.06 56.48 47.47 57.02 47.03 57.22 46.36 56.94 44.36 57.08 16.99 56.48 16.4 54.81 15.99 53.81 15.16 50.5 13.32 45.13 9.82 39.35 6.65 34.6 3.64 32.78 2.17 32.12 2 31.45 2.27 16.1 11.95 9.42 15.75 7.75 16.34 7.11 16.99Z M19.44 43.02 19.77 42.29 21.44 41.05 22.77 41.01 28.45 45.18 29.78 46.41 30.78 47.93 31.45 48.29 32.45 47.93 33.79 46.48 36.46 44.61 40.79 40.77 41.79 40.28 43.46 40.38 44.2 40.02 44.03 39.68 42.54 39.02 42.15 38.02 42.22 32.68 41.74 29.34 42.32 27.67 43.18 26.34 42.8 26.17 40.46 27.09 39.13 27.22 36.12 25.38 34.04 23.67 33.02 21.66 32.28 18.33 32.41 16.99 32.22 14.32 32.54 13.65 33.12 13.19 33.45 13.17 35.6 14.99 39.46 16.9 45.8 20.8 48.14 22.79 49.47 22.37 49.87 22.66 50.11 23.67 50.1 42.02 49.8 42.64 48.47 43.9 46.47 45.28 38.12 49.8 32.98 53.03 32.12 53.19 31.38 52.7 30.91 52.03 31.8 51.37 32.07 50.7 31.98 49.7 31.45 48.9 29.45 48.51 27.78 46.76 24.77 44.71 24.14 44.02 23.11 43.67 22.44 42.98 22.1 42.9 21.1 43.39 20.1 43.54 19.51 43.36Z M14.44 23 14.68 22.33 15.1 22.08 17.1 22.67 18.1 22.65 18.7 21.33 19.1 21.01 20.1 20.53 21.1 19.67 22.1 19.27 23.11 18.43 24.44 18.04 25.78 17.14 26.78 17.18 27.11 17.93 27.44 18.03 29.45 16.98 30.11 17.43 30.62 18.33 30.48 19.66 30.9 21.66 29.78 23.76 26.44 26.67 22.3 28.67 21.93 30.34 21.87 36.35 21.54 38.35 20.1 40.11 16.77 42.01 16.1 43.36 14.99 43.02 14.51 42.02 14.81 35.68Z"/>
+  <path fill="url(#logo-g2)" fill-rule="evenodd" d="M7.25 18.33 7.41 43.02 7.25 45.69 7.44 46.69 7.75 47.06 9.24 47.69 12.09 49.45 16.1 51.4 28.78 59.38 31.45 61.32 32.45 61.45 33.2 60.38 33.34 59.37 32.86 56.7 33.14 55.7 36.12 54.16 37.12 53.21 38.46 52.6 39.13 51.88 40.46 51.32 41.46 50.47 43.13 49.87 44.13 49.07 45.47 48.69 46.13 47.98 47.52 47.36 48.47 46.53 50.47 45.37 53.48 46.33 54.14 47.32 55.81 47.14 56.52 46.69 56.62 46.03 56.15 45.08 55.48 44.47 54.81 44.36 53.66 43.69 52.9 42.35 53.31 40.69 53.32 23 52.46 21.66 52.72 21 54.09 19.66 56.15 19.16 56.66 17.99 56.5 16.99 54.14 16.04 46.8 11.4 38.79 6.85 35.59 4.64 34.12 4 32.78 2.71 32.12 2.49 31.12 2.91 29.45 4.16 26.14 5.98 16.43 12.18 13.09 13.92 9.76 16.01 7.98 16.66 7.43 17.32Z M14.02 23 14.15 22.33 14.76 21.71 17.43 21.83 18.43 20.79 19.44 20.28 20.44 19.39 25.9 16.32 30.11 13.63 32.12 12.06 33.12 10.86 33.79 10.87 36.82 12.65 38.12 13.81 39.64 14.32 40.46 14.98 42 15.66 46.45 18.33 48.47 19.99 50.44 22.33 50.66 23 50.69 39.68 50.61 42.02 50.37 42.69 46.8 45.58 38.46 50.18 33.12 53.64 32.45 53.81 31.45 53.52 24.25 49.36 19.1 45.76 15.1 43.68 14.37 43.02 14.04 42.02 14.23 34.68Z M54.71 21.66 54.98 23 54.9 32.34 55.3 40.02 55.12 42.02 55.48 42.81 55.81 42.78 55.95 42.02 56.36 21.66 56.15 20.69 55.81 20.55 55.48 20.72Z M21.06 40.02 21.22 40.35 23.44 40.98 28.78 44.97 31.12 47.19 31.78 47.35 32.45 47.09 33.35 46.03 34.53 45.36 37.94 42.69 41.35 39.35 41.51 33.01 41.11 29.67 41.35 28 40.79 27.71 39.13 28.13 38.46 27.92 35.12 25.41 33.79 24.81 32.45 22.18 31.78 22.14 29.81 24.33 26.78 26.91 23.22 28.67 22.6 29.34 22.3 30.67 22.14 37.68Z M32.93 31.34 33.41 30.01 33.54 26.67 33.79 26.21 34.28 26.67 34.47 28 34.37 29.01 33.89 30.01 34.03 30.34 35.12 31.04 36.12 31.13 37.48 33.01 37.91 34.01 37.75 34.68 36.46 36.8 36.12 37.17 35.45 37.37 34.65 38.68 34.16 41.02 34.24 42.02 33.79 43.05 33.21 36.35 33.45 35.92 33.79 35.81 35.12 36.16 35.79 35.99 36.31 35.35 36.4 34.34 36.21 33.34 35.79 32.73 35.12 32.45 33.41 32.34 33.04 32.01Z M50.82 49.03 51.14 49.31 51.81 49.18 52.68 48.36 52.47 48.06 51.47 48.28 50.9 48.7Z M41.39 54.7 41.46 54.86 42.43 54.7 43.2 54.03 42.46 53.87 41.79 54.02Z M37.11 57.04 37.18 57.37 38.12 57.3 39.16 56.37 40.93 55.7 41.4 55.04 41.13 54.85 39.79 55.09 38.79 56.26 37.46 56.48Z M35.08 58.04 35.12 58.52 35.45 58.74 36.37 58.04 36.17 57.71 35.45 57.38Z"/>
+  <path fill="url(#logo-g3)" fill-rule="evenodd" d="M7.56 45.69 7.63 46.36 8.09 46.91 9.76 47.39 12.76 49.29 14.1 49.75 15.43 50.57 16.77 50.9 17.43 51.71 19.1 52.26 19.77 53.1 21.1 53.73 30.66 60.38 32.12 61 32.52 60.71 32.73 59.71 32.3 56.37 33.2 54.7 33.12 54.48 31.12 53.82 23.77 49.68 18.77 46.22 17.1 45.47 14.76 43.96 13.74 42.69 13.59 23 13.84 22 14.76 21.25 16.77 21.2 17.1 21.01 17.11 20.66 16.36 19.99 16.77 19.49 17.43 19.44 17.77 20.11 18.1 20.2 18.95 19.99 19.77 19.09 20.79 18.66 21.77 17.75 23.04 17.32 24.11 16.52 27.44 14.75 28.19 13.99 31.45 11.79 32.78 10.09 33.45 9.75 33.79 9.78 35.12 11 42.46 15.09 46.8 17.84 49.21 19.66 50.47 21.48 51.14 21.96 51.47 21.83 52.14 20.76 53.27 19.66 55.87 18.33 56.15 17.99 56.17 17.32 55.48 16.83 53.81 16.45 52.96 15.66 51.81 15.21 46.23 11.65 40.46 8.46 35.12 4.93 34.44 4.98 34.42 5.64 35.89 6.98 37.33 7.65 38.12 8.38 39.46 9.02 40.46 9.83 41.9 10.32 43.13 11.18 44.38 11.65 45.13 12.38 48.31 14.32 49.14 15.18 50.55 15.66 50.93 16.32 50.47 16.64 49.47 16.5 48.47 15.75 44.73 13.99 37.12 9.73 35.12 8.79 33.79 8.48 33.26 7.65 32.89 5.64 33.43 4.31 33.23 3.64 32.12 2.88 31.12 3.23 29.78 4.3 24.11 7.6 16.84 12.32 13.43 14.09 10.09 16.21 8.42 16.77 7.8 17.32 7.61 18.33 7.8 20.33 7.79 43.02Z M9.46 20.33 9.76 19.66 10.09 19.68 10.66 20.33 10.86 21 10.59 22.66 10.42 28.1 10.09 29.83 9.76 29.44 9.65 28.34 9.51 24 9.68 21.66Z M21.65 39.68 21.78 40.02 23.57 40.69 28.93 44.69 31.12 46.62 31.78 46.76 32.23 46.36 32.13 44.69 32.73 41.35 32.73 35.68 33.12 35.18 35.12 35.42 35.62 35.01 35.78 34.34 35.58 33.68 35.12 33.25 32.78 33.21 32.24 32.34 32.73 24.67 32.55 23.67 32.12 23.07 31.12 23.37 27.11 27.02 23.05 29.34 22.64 30.67 22.44 37.68Z M45.51 47.03 45.8 47.22 46.7 47.03 47.8 46.13 48.86 45.69 49.8 44.78 50.81 44.33 51.47 44.33 52.47 45.04 53.35 45.02 51.47 42.39 49.14 44.47 48.02 45.02 47.13 46 46.1 46.36Z M10.84 46.69 10.96 46.36 11.43 46.14 12.45 46.03 15.1 46.69 15.48 47.36 15.1 47.88 14.76 47.87 12.43 47.45Z M15.69 48.7 16.13 48.36 17.43 48.19 17.73 48.36 17.53 49.03 17.77 49.28 19.36 49.7 20.1 50.59 21.44 50.76 22.32 51.7 23.77 52.1 24.1 52.37 24.11 52.85 23.44 53.27 22.1 53.25 21.72 53.03 21.41 52.37 19.44 52.01 19.03 51.03 17.58 50.7 17.15 50.36 17.34 49.36Z M33.94 54.03 35.59 53.7 36.46 52.76 37.93 52.03 38.33 51.37 37.12 51.55 35.79 52.54 34.6 53.03Z"/>
+  <path fill="url(#logo-g4)" fill-rule="evenodd" d="M7.91 45.69 8.09 46.46 9.09 46.76 10.09 45.81 12.09 45.2 13.09 45.13 15.1 45.61 15.57 45.36 13.81 43.69 13.09 42.35 13.1 30.67 12.82 25.67 12.96 22.33 13.24 21.66 15.1 20.46 16.05 18.99 18.77 17.49 21.94 15.32 25.44 13.51 26.56 12.65 28.45 12.28 29.03 11.65 30.45 11.57 31.43 10.98 32.58 8.98 32.44 6.65 32.08 5.64 32.76 3.98 32.45 3.45 31.78 3.29 31.12 3.59 30.11 4.48 26.78 6.34 17.43 12.44 13.73 14.32 10.42 16.55 8.74 16.99 8.09 17.58 8.09 18.66 8.42 19.34 9.42 18.76 10.09 18.69 11.29 19.66 12.32 21.33 11.86 23 12 26.34 11.56 31.34 11.25 43.02 10.85 43.69 10.09 44.17 9.57 44.02 9.21 43.36 9.09 36.56 8.42 29.46 8.36 43.02Z M11.93 17.32 12.16 16.99 13.43 16.55 14.1 15.96 15.43 15.58 16.04 15.66 15.28 16.32 13.76 16.84 13.09 17.42 12.43 17.55Z M50.26 18.99 50.67 20.33 51.14 20.71 53.14 19.12 55.26 17.99 55.56 17.66 55.48 17.34 54.14 17.2 52.47 18.23Z M22.23 39.35 22.44 39.83 23.77 40.37 29.11 44.36 30.45 45.62 31.12 45.94 31.45 45.77 31.99 41.69 32.14 38.35 31.98 36.01 31.49 33.68 31.92 27.67 31.97 24.67 31.74 24 31.12 24.04 27.44 27.18 25.44 28.53 24.08 29.01 23.33 29.67 23.05 30.67 22.9 37.01Z M25.66 30.67 26.11 29.88 26.78 29.75 27.44 29.93 29.45 31.14 29.86 32.01 29.79 32.68 29.45 33 28.78 32.85 27.11 31.48 25.9 31.01Z M28.11 53.37 28.45 53.79 29.45 54.25 30.35 56.04 30.28 57.37 29.67 58.37 30.57 59.71 31.78 60.28 32.02 60.04 32.09 59.37 31.47 58.04 31.46 56.37 31.83 55.04 31.12 54.42 29.78 53.99 28.92 53.37Z"/>
+</svg>
+  <div class="brand"><h1>League Remote</h1><span class="status"><span class="dot" id="dot"></span><span id="who"></span></span></div>
+  <button class="icon-btn" id="settings-btn" aria-label="Settings"><svg class="i" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="gear-g1" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b49a68"/>
+      <stop offset="1" stop-color="#886c3e"/>
+    </linearGradient>
+    <linearGradient id="gear-g2" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ddc490"/>
+      <stop offset="1" stop-color="#ab8c54"/>
+    </linearGradient>
+    <linearGradient id="gear-g3" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f4dcaa"/>
+      <stop offset="1" stop-color="#d4b67d"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#gear-g1)" fill-rule="evenodd" d="M2.82 32.49 3.11 34.31 4.14 35.91 9.38 36.91 12.23 40.4 12.48 42.18 12.13 43.9 10.52 46.29 8.75 47.89 8.47 49.03 12.8 54.14 14.51 54.65 16.8 52.59 19.65 51.43 21.93 51.48 23.64 52.06 25.35 52.95 26.29 54.16 26.93 59.3 27.63 60.89 29.35 61.72 32.2 62 34.48 61.62 35.62 60.85 36.7 54.73 38.47 52.59 40.75 51.04 42.46 50.66 43.61 50.93 46.46 52.3 48.74 54.31 50.45 54.29 51.42 53.59 54.41 50.17 54.81 49.03 54.39 47.32 52.39 45.04 51.63 43.33 51.38 41.04 51.92 39.33 54.44 36.8 59.01 36.11 60.15 35.6 60.93 34.2 61.18 31.35 60.72 29.16 59.66 27.92 58.44 27.23 53.87 26.24 52.01 23.93 51.71 22.22 52.05 19.37 54.23 16.52 54.83 14.81 54.44 13.44 51.59 10.52 49.88 9.66 48.17 9.67 44.18 12.8 42.46 13.11 40.18 12.81 36.71 9.67 36.34 8.53 36.29 4.54 35.62 3.24 33.55 2.26 30.49 2 28.77 2.36 27.06 3.73 26.04 9.67 22.5 12.45 19.65 12.63 15.37 9.67 13.94 9.41 9.44 13.66 9.14 15.38 11.96 19.94 11.85 22.22 9.95 26.25 8.81 26.7 4.82 27.1 3.8 27.92Z M20.03 30.78 20.49 27.35 23.14 23.36 27.06 20.72 29.35 20.18 32.77 20.13 37.33 21.04 41.83 25.07 42.6 26.78 43.48 31.92 42.35 37.62 40.18 40.1 36.76 42.59 31.63 43.08 27.06 42.25 23.07 39.52 20.55 35.34Z"/>
+  <path fill="url(#gear-g2)" fill-rule="evenodd" d="M3.86 31.35 4.1 33.63 4.82 34.96 9.95 36.05 12.93 39.33 13.31 41.61 13.05 44.47 9.95 48.42 9.89 49.03 12.23 51.18 13.37 53.04 14.51 53.35 16.23 51.69 19.08 50.17 20.79 49.97 23.07 50.35 26.69 52.45 28.53 55.87 28.77 59.87 31.06 60.63 33.34 60.39 34.48 59.77 34.91 55.3 35.52 53.59 40.18 49.72 41.89 49.26 44.18 49.32 47.6 51.08 48.98 52.45 49.88 52.66 53.17 49.6 53.27 47.89 49.68 43.33 49.56 40.47 52.73 36.32 55.01 35.25 59.01 34.44 59.58 33.63 60.01 31.35 59.58 29.88 58.44 28.74 54.44 27.63 52.73 26.76 50.61 23.36 50.45 21.65 51.22 19.37 53.94 15.38 53.55 13.66 51.02 11.24 49.31 10.51 48.17 10.75 45.89 12.73 44.18 13.57 42.46 13.81 39.61 13.34 36.65 10.81 35.85 9.67 35.48 7.96 35.6 5.11 35.05 4.09 33.91 3.47 31.06 3.08 29.35 3.35 28.2 4.08 27.56 5.11 27.17 8.53 26.5 10.24 23.07 13.01 20.79 13.53 19.08 13.3 16.23 11.09 14.51 10.42 12.8 11.35 10.62 13.66 10.06 14.81 10.64 16.52 12.72 19.37 12.9 21.08 12.46 23.36 10.93 26.21 9.95 27.13 4.82 28.4 4.13 29.64Z M18.95 31.35 19.87 26.78 22.7 22.79 25.35 20.72 27.06 19.9 30.49 19 33.34 19.1 37.9 20.33 42.46 24.48 44.46 29.07 44.77 33.63 42.91 38.76 39.04 42.49 34.48 44.36 31.06 44.42 25.92 42.93 22.5 40.33 19.93 36.48Z M36.05 47.89 36.28 47.32 43.36 43.33 44.18 41.46 47.03 37.27 48.17 36.36 48.17 38.14 46.75 41.04 46.37 43.9 47.72 46.75 49.88 48.31 49.93 49.03 48.74 49.06 47.82 48.46 47.41 46.75 46.46 46.05 44.18 46.61 41.32 46.6 37.33 48.14Z"/>
+  <path fill="url(#gear-g3)" fill-rule="evenodd" d="M4.54 31.35 4.82 33.05 5.56 34.2 7.67 34.12 11.09 34.93 11.28 34.2 10.52 33.14 7.86 33.06 7.65 32.49 8.01 31.35 8.81 30.78 11.42 30.21 13.59 27.92 14.79 25.64 16.53 23.93 17.37 20.94 18.35 21.65 18.54 22.79 17.11 26.21 16.89 29.07 17.37 30.1 19.37 25.64 22.19 22.22 25.35 19.79 30.49 17.93 34.48 18.19 39.04 19.88 42.84 23.36 44.18 25.81 45.32 26.87 45.33 24.5 43.82 22.22 43.03 20.04 38.3 17.09 39.04 16.82 42.41 18.23 43.61 19.31 45.89 19.68 46.9 21.08 47.6 23.44 50.45 26.81 50.69 26.21 49.34 23.36 49.42 21.08 51.71 17.09 53.33 15.38 53.3 14.24 50.45 11.51 49.31 11.11 48.17 11.45 45.89 13.59 43.61 14.44 41.32 14.44 39.04 13.79 35.43 10.24 34.75 7.96 35.11 5.68 34.58 4.54 31.63 3.83 29.76 3.97 28.31 5.11 28 7.96 27.06 10.47 23.64 13.46 21.36 14.11 19.08 13.92 17.94 13.43 15.81 11.38 14.51 10.99 13.37 11.53 11.38 13.66 10.69 15.38 12.93 18.23 13.49 19.94 13.15 23.93 11.5 26.78 10.52 27.72 5.39 28.96 4.82 29.69Z M14.33 40.47 14.51 44.72 15.08 44.59 15.38 43.9 15.74 41.61 15.45 39.9 14.51 39Z"/>
+</svg></button>
 </header>
 
 <div id="stale" class="hidden">⚠ Lost connection to your PC — what you see may be out of date. Reconnecting…</div>
@@ -171,18 +350,19 @@
   <!-- in queue -->
   <section id="v-queue" class="card hidden">
     <h2>In queue</h2>
-    <div class="big" id="queue-time">0:00</div>
+    <div class="ring"><div class="big" id="queue-time">0:00</div></div>
     <p id="queue-est"></p>
     <p id="queue-auto" style="margin-top:10px"></p>
-    <button class="btn danger" id="cancel-btn">Leave queue</button>
+    <button class="btn ghost" id="cancel-btn">Leave queue</button>
   </section>
 
   <!-- ready check -->
   <section id="v-ready" class="card hidden">
     <h2>Match found!</h2>
     <p id="ready-left"></p>
-    <button class="btn primary huge pulse" id="accept-btn">Accept</button>
-    <button class="btn danger" id="decline-btn">Decline</button>
+    <div class="emblem" aria-hidden="true"></div>
+    <div class="accept-ring"><button class="btn primary huge pulse" id="accept-btn">Accept</button></div>
+    <button class="btn ghost" id="decline-btn">Decline</button>
   </section>
 
   <!-- champ select -->
@@ -193,12 +373,16 @@
       <div class="row"><span class="lbl">Enemy</span><span id="t-theirs" class="row"></span></div>
       <div class="row" id="ban-row"><span class="lbl">Bans</span><span id="t-bans" class="row" style="flex-wrap:wrap"></span></div>
     </div>
+    <div class="loadout">
+      <button class="lo-btn" id="lo-runes"><img class="ico" id="lo-runes-ico" alt=""><span class="lo-txt"><small>Runes</small><b id="lo-runes-name">—</b></span></button>
+      <button class="lo-btn" id="lo-spells"><span class="lo-spells" id="lo-spells-ico"></span><span class="lo-txt"><small>Spells</small><b id="lo-spells-name">—</b></span></button>
+    </div>
     <div id="cs-picker">
       <input id="search" type="search" placeholder="Search champion…" autocomplete="off">
       <p id="grid-empty" class="hidden" style="color:var(--muted);text-align:center;margin-top:20px">Loading champions from the client…</p>
       <div id="grid"></div>
     </div>
-    <div id="cs-done" class="card hidden"><h2 id="cs-done-title">Locked in</h2><p id="cs-done-sub">Runes and skins can be changed on the PC.</p></div>
+    <div id="cs-done" class="card hidden"><h2 id="cs-done-title">Locked in</h2><p id="cs-done-sub">Skins can be changed on the PC.</p></div>
   </section>
 
   <!-- in game / after game / other -->
@@ -222,10 +406,12 @@
     <div class="toggle"><div>Auto-accept matches<small>The PC accepts queue pops even if your phone is locked.</small></div><button class="switch" id="sw-accept"></button></div>
     <div class="toggle"><div>Lock hover before timeout<small>Locks your hovered champion with 4 s left so you never dodge. Only works if a champion is hovered.</small></div><button class="switch" id="sw-lock"></button></div>
     <p id="version" style="color:var(--muted);font-size:13px;text-align:center;margin:14px 0 0"></p>
-    <button class="btn" id="unpair-btn">Unpair this phone</button>
+    <button class="btn ghost" id="unpair-btn">Unpair this phone</button>
     <button class="btn primary" id="close-sheet">Done</button>
   </div>
 </div>
+
+<div id="lo-sheet" class="hidden"><div class="inner" id="lo-body"></div></div>
 
 <div id="toast" class="hidden"></div>
 
@@ -235,9 +421,16 @@ const QUEUES = [[420, 'Ranked Solo/Duo'], [440, 'Ranked Flex'], [400, 'Normal Dr
 const VIEWS = ['pair', 'offline', 'noclient', 'home', 'lobby', 'queue', 'ready', 'champ', 'other'];
 
 // ---------- pairing key ----------
-let key = localStorage.getItem('lr-key') || '';
+// Storage can be refused (private browsing, strict privacy settings, embedded frames): the app must
+// keep working then, it just won't remember the pairing code or favorites.
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  del(k) { try { localStorage.removeItem(k); } catch {} },
+};
+let key = store.get('lr-key') || '';
 const fromHash = new URLSearchParams(location.hash.slice(1)).get('k');
-if (fromHash) { key = fromHash; localStorage.setItem('lr-key', key); history.replaceState(null, '', location.pathname); }
+if (fromHash) { key = fromHash; store.set('lr-key', key); history.replaceState(null, '', location.pathname); }
 
 // Every request gives up after a timeout, so a dropped connection can never freeze the screen.
 async function api(method, path, body, timeoutMs = 4000) {
@@ -256,7 +449,7 @@ async function api(method, path, body, timeoutMs = 4000) {
     clearTimeout(timer);
   }
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw Object.assign(new Error(data.error || `Error ${r.status}`), { status: r.status });
+  if (!r.ok) throw Object.assign(new Error(data.error || `Error ${r.status}`), { status: r.status, data });
   return data;
 }
 async function act(path, body, okMsg) {
@@ -292,7 +485,7 @@ function alertUser(pattern = [300, 120, 300]) {
 
 // ---------- champions ----------
 let champions = [], byId = new Map();
-let favs = new Set(JSON.parse(localStorage.getItem('lr-favs') || '[]'));
+let favs = new Set((() => { try { return JSON.parse(store.get('lr-favs') || '[]'); } catch { return []; } })());
 let selected = 0;      // what the phone shows as chosen
 let pendingHover = 0;  // a hover sent to the client but not confirmed yet
 let locking = false;
@@ -380,7 +573,7 @@ async function choose(id) {
 $('#fav-btn').onclick = () => {
   if (!selected) return;
   favs.has(selected) ? favs.delete(selected) : favs.add(selected);
-  localStorage.setItem('lr-favs', JSON.stringify([...favs]));
+  store.set('lr-favs', JSON.stringify([...favs]));
   buildGrid();
 };
 
@@ -414,7 +607,7 @@ function paintDock() {
   $('#fav-btn').textContent = favs.has(selected) ? '★' : '☆';
   const btn = $('#lock-btn');
   btn.textContent = locking ? (ban ? 'Banning…' : 'Locking…') : ban ? 'Ban' : 'Lock in';
-  btn.className = 'btn ' + (ban ? 'danger' : 'gold');
+  btn.className = 'btn ' + (ban ? 'ban' : 'primary');
   btn.disabled = locking || !(t?.active && selected);
   $('#dock-hint').textContent =
     !t ? '' :
@@ -423,6 +616,7 @@ function paintDock() {
     !selected ? (t.active ? (ban ? 'Your turn — tap a champion to ban' : 'Your turn — tap a champion') : 'Not your turn yet') :
     confirmed ? (t.active ? 'Hovered in client ✓ — tap to confirm' : 'Hovered ✓ — not your turn yet') :
     'Not hovered in the client';
+  $('#dock-hint').textContent = $('#dock-hint').textContent.replace(' — ', '\n');
 }
 
 // ---------- state + rendering ----------
@@ -430,6 +624,7 @@ let state = null, stateAt = 0, lastPhase = '', lastTurnKey = '', lastServerChamp
 
 function show(view) {
   for (const v of VIEWS) $('#v-' + v).classList.toggle('hidden', v !== view);
+  document.body.dataset.view = view;
   $('#dock').classList.toggle('hidden', !(view === 'champ' && state?.champSelect?.turn));
 }
 
@@ -439,13 +634,31 @@ function renderQueues() {
     box.innerHTML = '';
     for (const [id, name] of QUEUES) {
       const b = document.createElement('button');
-      b.textContent = name; b.classList.toggle('on', id === current);
+      labelled(b, id, name); b.classList.toggle('on', id === current);
       b.onclick = () => act('/api/lobby', { queueId: id });
       box.append(b);
     }
   }
 }
 
+// Icons traced from the approved design reference (concepts/trace/svg), used as-is.
+const ICONS = {
+  400: "<svg class=\"i\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\n  <defs>\n    <linearGradient id=\"queue-draft-g1\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#9f937c\"/>\n      <stop offset=\"1\" stop-color=\"#74694f\"/>\n    </linearGradient>\n    <linearGradient id=\"queue-draft-g2\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#cbbfa5\"/>\n      <stop offset=\"1\" stop-color=\"#a5997f\"/>\n    </linearGradient>\n    <linearGradient id=\"queue-draft-g3\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#e1d5ba\"/>\n      <stop offset=\"1\" stop-color=\"#bfb095\"/>\n    </linearGradient>\n  </defs>\n  <path fill=\"url(#queue-draft-g1)\" fill-rule=\"evenodd\" d=\"M4.08 28.39 4.9 34.02 7.63 39.29 9.51 41.36 11.26 41.53 11.73 40.9 11.69 39.65 9.63 32.77 9.31 30.27 9.78 22.76 10.76 20.24 13.26 18.08 20.15 14.63 27.65 9.87 30.16 9.38 35.79 10.33 37.64 10.25 38.65 9 38.52 7.74 37.23 6.49 33.28 4.4 31.41 2.16 30.16 2 28.06 2.74 23.9 6.85 20.15 9.5 15.14 11.92 9.51 13.03 7.53 15.25 6.61 19.01 4.91 22.13Z M6.8 57.17 7.13 58.42 8.26 59.05 12.64 57.02 20.92 50.29 22.02 48.38 25.15 45.86 29.53 43.22 33.91 41.4 36.2 38.4 37.28 35.9 39.84 32.14 46.08 25.89 53.79 20.26 56.43 16.56 59.04 12.12 59.92 4.62 58.99 2.74 57.06 2.37 51.43 3.31 46.72 5.24 40.17 12.71 38.29 15.91 33.43 22.13 28.9 24.66 26.4 29.64 20 37.15 16.81 42.15 12.01 47.22 9.17 52.79 7.37 54.67Z M19.18 26.51 20.09 28.39 21.4 28.32 24.52 24.83 26.4 23.54 27.4 23.38 23.9 23.34 20.77 24.33 19.52 25.21Z M22.43 53.42 24.43 57.17 25.98 58.42 27.65 60.99 30.16 62 31.09 61.55 34.54 57.73 39.54 53.57 41.42 52.74 45.86 52.16 46.45 51.54 46.64 50.29 45.17 45.91 53.93 38.08 56.41 32.14 56.64 27.76 56.23 25.89 54.56 25.18 52.05 26.58 49.42 35.9 39.54 48.6 34.54 51.53 29.53 52.67 23.27 52.01 22.65 52.42Z\"/>\n  <path fill=\"url(#queue-draft-g2)\" fill-rule=\"evenodd\" d=\"M4.4 28.39 5.13 32.77 7.63 38.6 9.51 41.29 10.76 41.66 11.41 40.28 9.27 32.14 8.97 28.39 9.4 23.38 9.85 21.51 10.9 19.63 13.89 17.37 20.24 14 27.65 9.24 30.16 8.71 37.04 9.95 38.29 9.23 38.29 8.01 33.28 5.08 30.78 2.44 29.53 2.2 20.15 10.15 14.51 13.03 11.39 12.88 9.76 13.37 7.63 16.32 5.76 21.2Z M6.91 57.8 7.13 58.42 8.26 58.76 12.7 56.54 15.93 54.04 22.65 47.22 27.65 43.78 33.28 41.48 36.86 35.9 41.88 29.64 46.42 25.08 52.79 20.26 55.81 16.65 58.36 12.12 59.48 4.62 59.19 3.36 57.68 2.75 50.91 3.99 48.3 4.83 47.05 5.71 42.07 11.5 35.98 19.63 33.28 22.48 29.53 25.32 26.58 29.64 20.15 37.4 16.75 42.78 10.14 50.73 9.25 52.79 7.63 54.73Z M19.52 26.51 19.77 27.76 20.15 28.28 20.77 28.27 25.22 23.38 24.22 23.38 20.77 24.84Z M23.02 53.42 23.43 54.67 28.28 60.6 30.16 61.65 36.41 55.44 40.17 52.59 45.8 51.76 46.3 50.29 44.78 47.78 44.74 45.91 49.85 41.53 53.93 36.69 55.81 31.47 55.98 27.14 55.51 25.89 53.93 25.8 52.68 26.83 52.01 28.39 51.15 33.4 49.81 36.52 40.17 49.08 35.79 51.88 32.03 53.14 28.9 53.73 23.9 52.59Z\"/>\n  <path fill=\"url(#queue-draft-g3)\" fill-rule=\"evenodd\" d=\"M13.73 15.25 15.14 15.58 19.52 13.5 25.78 9.29 30.16 7.01 35.79 9.22 37.04 9.31 37.69 9 37.74 8.37 32.03 5.45 30.42 3.36 29.53 3.03 20.77 10.8Z M45.04 10.25 45.17 10.58 46.42 10.38 47.95 8.37 51.43 7.36 54.56 7.61 55.18 8.06 55.64 9 55.59 10.25 53.93 13.46 53.3 16.38 51.83 17.75 51.43 19.66 52.68 18.84 55.18 16.04 57.13 12.12 58.58 3.99 57.06 3.53 53.93 5.32 48.3 5.75 45.8 8.62Z M5.59 27.76 6 31.52 7.63 33.77 7.92 24.64 9.08 20.26 8.88 18.11 6.38 22.61Z M22.71 35.9 23.27 36.35 24.52 35.43 29.66 28.39 31.77 26.51 32.5 25.26 32.03 24.72 30.42 25.89 29.36 27.76 23.27 34.63Z M52.79 29.64 53.3 31.91 53.93 32.15 54.56 31.26 55.18 28.01 55.13 27.14 54.56 26.55 53.3 27.33Z M45.48 43.41 45.8 43.74 46.42 43.46 48.78 41.53 52.05 37.94 52.91 36.52 53.01 34.65 52.68 34.42 52.05 34.94 49.83 38.4Z M41.67 50.29 43.92 51.39 45.45 50.91 45.17 49.98 43.29 48.66 42.67 48.77Z M32.85 55.29 33.28 56.14 34.54 55.69 38.49 52.79 39.1 51.54 37.66 51.67 33.81 54.04Z\"/>\n</svg>",
+  420: "<svg class=\"i\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\n  <defs>\n    <linearGradient id=\"queue-ranked-g1\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#8d7a4a\"/>\n      <stop offset=\"1\" stop-color=\"#514937\"/>\n    </linearGradient>\n    <linearGradient id=\"queue-ranked-g2\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#f5d89a\"/>\n      <stop offset=\"1\" stop-color=\"#c09a58\"/>\n    </linearGradient>\n    <linearGradient id=\"queue-ranked-g3\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#fff0ba\"/>\n      <stop offset=\"1\" stop-color=\"#e8c27d\"/>\n    </linearGradient>\n  </defs>\n  <path fill=\"url(#queue-ranked-g1)\" fill-rule=\"evenodd\" d=\"M4.54 27.52 5.06 30.23 8.86 35.43 9.67 38.36 9.4 39.81 7.56 42.16 7.37 43.78 7.77 44.79 11.25 45.95 14.63 48.12 18.61 51.57 20.78 52.76 22.41 54.44 23.49 54.85 25.12 54.69 25.77 54.08 26.09 52.46 25.2 49.2 17.53 42.69 15.26 38.9 14.6 35.65 14.49 31.86 15 29.14 15.36 28.24 15.9 28.13 17.23 31.86 18.07 36.3 20.71 40.53 21.87 41.17 26.2 42.05 27.83 44.51 28.4 47.03 28.33 55.17 28.75 58.42 29.46 60.22 32.17 62 33.25 61.7 33.79 61.11 35.65 56.79 36.05 50.29 35.62 44.87 36.5 42.41 37.59 41.25 39.76 41.86 41.92 41.12 45.18 38.27 46.46 36.19 47.55 29.14 47.35 24.25 47.89 24.36 48.41 26.43 48.18 29.14 48.61 35.11 48.23 38.9 47.63 39.99 42.47 44.99 39.59 48.66 38.9 50.83 38.84 52.46 39.21 53.61 40.3 54.52 42.47 54.24 45.72 50.4 50.06 46.94 51.14 46.47 54.39 46.37 55.91 45.41 56.29 44.32 55.87 42.7 52.82 39.99 52.73 39.44 54.39 35.77 58.8 29.69 59.46 28.06 59.26 26.98 58.19 25.89 56.56 25.59 54.39 26.09 53.43 25.35 51.68 13.42 51.09 11.8 50.06 11 48.43 11.32 46.51 12.88 45.22 17.22 45.89 19.93 45.76 21.01 44.08 22.64 43.01 22.94 42.7 22.1 43.11 19.39 42.55 17.76 38.59 13.97 36.5 10.67 35.65 8 34.4 5.83 33.44 2.58 32.17 2 31.08 2.51 29.66 4.21 28.37 9.14 22.39 16.68 20.16 20.47 19.48 23.72 18.61 24.97 15.9 26.64 15.81 24.27 18.13 21.56 18.62 20.47 18.81 15.05 17.88 12.88 15.59 10.71 14.28 10.54 12.11 12.09 11.64 12.88 11.73 18.3 11.02 24.41 9.4 25.6 5.54 25.89 4.86 26.43Z M31.7 23.18 32.17 22.22 32.71 22.24 33.91 23.72 36.5 25.73 38.67 26.05 39.76 26.73 41.27 30.23 41.08 31.86 40.3 32.94 39.76 33.28 39.21 32.87 37.05 29.92 35.42 29.7 34.57 29.14 33.25 25.11Z M23.15 27.52 23.49 26.43 24.04 25.98 25.66 26 27.83 25.28 28.79 25.89 29.02 27.52 28.21 32.4 28.71 36.19 28.37 38.48 27.83 38.65 27.29 37.73 25.94 32.94 25.12 31.11 23.49 29.08Z\"/>\n  <path fill=\"url(#queue-ranked-g2)\" fill-rule=\"evenodd\" d=\"M17.16 28.06 18.45 35.11 20.78 39.38 21.87 40.16 26.75 40.89 27.21 40.53 26.74 37.82 24.93 33.48 23.22 30.77 22.63 26.98 23 25.89 24.04 25.03 25.66 25.04 28.37 24.41 29.7 25.35 29.73 28.06 28.9 32.94 29.08 38.9 28.37 40.4 27.44 41.07 29 45.95 29.08 55.71 29.46 58.42 30.72 60.59 31.62 61.14 32.71 61.09 33.79 59.78 34.88 55.91 35.17 50.29 34.82 44.87 35.92 41.61 36.15 37.28 37.6 35.11 38.03 33.48 37.78 32.4 37.05 31.45 34.88 30.98 33.97 30.23 33.1 26.43 30.89 23.72 31.15 22.1 32.17 21.3 33.11 21.56 34.43 23.18 36.5 24.86 39.76 25.55 41.49 28.06 42.04 29.69 42.03 31.86 41.19 34.02 38.56 38.36 38.56 39.99 39.21 40.66 40.3 40.84 41.38 40.51 44.64 37.87 45.72 36.41 46.33 34.57 46.65 28.06 46.26 22.84 45.72 22.45 45.18 22.58 43.01 24.22 42.28 23.72 41.98 22.64 42.47 19.93 42.03 18.3 38.37 14.51 36.47 11.8 34.08 6.38 33.33 3.12 32.71 2.49 31.62 2.56 30.54 3.92 28.79 9.63 21.32 19.44 19.98 24.27 17.5 26.98Z M5.12 28.6 5.44 29.69 7.23 31.7 9.27 35.11 10.51 38.36 10.29 39.99 8.39 42.7 8.74 44.32 12.11 45.57 19.16 51.01 21.32 51.62 22.95 53.71 24.04 53.9 24.82 53.54 25.37 51.91 24.66 49.74 22.41 48.29 20.29 45.95 16.99 43.47 15.11 40.53 14.51 38.9 13.86 34.02 14.74 24.81 15.46 23.18 17.73 21.01 18.25 18.84 17.91 14.51 16.99 12.89 15.36 11.44 13.74 11.39 12.37 12.88 12.55 18.84 11.72 23.72 11.06 25.35 9.4 26.6 6.15 26.66 5.27 27.52Z M39.44 51.91 40.08 53.54 40.84 53.83 41.92 53.6 45.18 50.02 50.06 45.93 51.14 45.55 54.39 45.53 55.45 44.32 54.97 42.7 52.19 41.07 51.68 40.53 51.48 39.44 53.98 35.11 57.94 29.69 58.41 28.6 58.38 27.52 57.1 26.45 53.85 27.02 52.64 25.89 52.2 24.81 51.38 18.3 51.14 13.47 50.6 12.3 49.68 11.8 48.43 11.98 47.27 12.88 46.04 17.22 49.27 26.43 49.01 38.9 48.07 40.53 44.94 43.24 42.61 45.95 40.04 49.74Z M31.99 36.73 32.34 34.02 33.25 32.96 34.15 34.02 34.44 35.65 32.71 39.15 32.17 38.81Z\"/>\n  <path fill=\"url(#queue-ranked-g3)\" fill-rule=\"evenodd\" d=\"M18.4 28.6 19.18 34.02 21.29 38.36 22.41 38.88 24.04 38.72 25.66 39.63 26.07 38.9 25.66 37.38 24.28 35.65 22.28 31.86 21.81 26.98 22.4 24.81 24.04 23.72 29.46 23.1 30.75 21.01 32.17 20.27 33.79 20.85 35.09 22.64 37.05 23.9 40.84 24.04 41.59 20.47 41.39 18.84 35.86 12.34 33.75 8 32.71 3.66 31.72 3.67 31.08 4.59 29.14 10.71 23.34 17.76 21.87 20.08 21.3 21.56 20.96 24.81 18.87 26.98Z M5.93 28.6 6.15 29.35 8.04 31.31 9.69 34.02 11.37 37.82 11.37 39.99 9.69 42.7 9.94 43.75 12.65 44.67 17.53 48.51 19.7 49.4 20.02 48.66 19.36 47.03 16.99 45.12 14.16 41.07 12.97 35.11 13.38 24.81 14.76 22.1 16.99 20.6 17.48 19.39 17.11 15.05 16.45 13.58 15.36 12.53 14.2 12.34 13.18 13.42 14.06 18.3 12.39 25.35 9.94 27.88 6.69 27.54Z M47.18 16.68 49.51 24.04 50.6 25.65 51.11 22.1 50.31 17.22 50.55 13.97 50.06 12.92 48.97 12.67 47.89 13.42 47.35 14.74Z M40.06 38.9 40.84 39.41 42.71 38.36 44.09 37.13 45.39 35.11 45.98 25.89 45.78 24.27 45.18 23.85 42.49 26.43 43.1 29.69 43.1 32.94 42.61 34.57 40.96 36.73Z M30.86 28.6 31.08 30.46 31.62 30.5 32.26 29.69 32.49 28.06 32.19 26.98 31.62 26.59 31.06 26.98Z M50.15 36.19 50.6 37.83 51.81 37.28 55.07 31.86 57.03 29.69 57.35 28.6 57.1 27.85 56.02 27.57 53.85 28.14 51.14 26.55 50.46 28.6Z M29.19 42.16 29.97 46.49 30.26 57.88 30.94 59.5 32.17 60.13 32.95 59.5 33.28 58.42 33.81 50.83 33.43 44.87 34.88 41.07 34.34 40.09 32.71 41.35 32.17 41.37 31.18 40.53 30.82 39.44 31.08 33.52 30.54 32.17 29.86 34.02 30.08 39.44Z M40.44 51.91 40.84 52.64 41.92 52.44 44.26 49.74 49.51 44.98 51.14 44.41 53.85 44.75 54.46 44.32 54.29 43.24 51.68 42.16 50.06 41 48.43 41.48 45.54 43.78 43.29 46.49 40.91 50.29Z\"/>\n</svg>",
+  440: "<svg class=\"i\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\n  <defs>\n    <linearGradient id=\"queue-flex-g1\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#9f937c\"/>\n      <stop offset=\"1\" stop-color=\"#74694f\"/>\n    </linearGradient>\n    <linearGradient id=\"queue-flex-g2\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#cbbfa5\"/>\n      <stop offset=\"1\" stop-color=\"#a5997f\"/>\n    </linearGradient>\n    <linearGradient id=\"queue-flex-g3\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#e1d5ba\"/>\n      <stop offset=\"1\" stop-color=\"#bfb095\"/>\n    </linearGradient>\n  </defs>\n  <path fill=\"url(#queue-flex-g1)\" fill-rule=\"evenodd\" d=\"M13.72 53.78 14.2 54.96 16.91 56.31 21.62 55.82 38.7 55.83 46.95 56.72 48.13 56.34 49.34 54.96 49.32 53.19 48.41 50.24 48.24 46.12 47.54 44.5 43.04 39.64 35.17 34.1 33.06 30.22 33.71 27.86 38.5 23.74 40.64 19.62 40.56 14.32 38.48 10.78 35.76 8.41 32.81 7.28 31.04 7.44 27.51 8.52 24.75 11.37 23.25 14.91 22.8 20.92 23.39 22.11 26.33 25.33 28.69 26.71 29.73 27.86 30.16 30.22 29.83 32.57 29.28 33.93 27.51 36.14 21.52 39.05 17.5 42.44 15.2 46.12Z M8.55 24.33 8.76 26.1 11.26 30.22 13.96 32.01 15.14 31.93 17.16 30.81 19.22 27.27 19.14 23.74 18.53 20.79 17.5 19.16 15.73 18.22 13.38 18.2 11.02 19.44 9.25 22.08Z M45.55 21.38 46.17 24.92 45.91 28.45 46.36 30.23 48.13 31.49 49.3 31.71 50.79 31.4 52.84 29.69 54.6 26.11 54.93 24.92 54.6 23.05 52.77 20.21 49.3 18.86 46.95 19.16 45.88 20.21Z M2 50.24 2.2 51.42 3.36 52.48 8.07 52.9 9.84 52.51 10.48 51.42 10.12 48.48 10.7 46.12 12.98 42 16.94 37.88 16.91 36.51 15.73 36.08 13.32 36.7 6.36 40.82 3.95 44.15 2.27 48.48Z M48.08 38.46 51.34 42.59 52.52 44.94 52.79 50.83 53.43 52.34 54.6 52.97 60.49 53.39 61.67 52.97 62 51.42 60.71 49.07 59.9 45 57.55 41.64 51.07 37.16 48.71 37.24Z\"/>\n  <path fill=\"url(#queue-flex-g2)\" fill-rule=\"evenodd\" d=\"M14.54 54.37 15.14 55.47 16.32 55.78 19.85 55.45 44 55.43 46.95 55.88 48.13 55.69 48.71 55.05 48.74 53.78 47.74 50.83 47.54 46.45 45.77 43.11 42.42 39.64 36.35 35.92 34.18 33.75 33.12 31.4 32.94 29.63 33.6 27.86 38.4 23.74 40.05 19.62 39.88 13.83 38.13 10.78 35.3 8.43 32.22 7.46 28.33 8.43 25.74 10.36 23.98 13.22 23.14 16.67 23.39 20.86 26.33 25.22 29.28 26.8 30.27 27.86 30.75 30.22 30.3 32.57 29.45 34.34 27.51 36.41 21.62 39.62 18.09 42.63 16.32 45.22 15.81 46.71 15.46 50.83Z M9.27 24.92 9.84 27.02 11.61 30.13 13.38 31.48 15.14 31.49 16.61 30.81 18.68 27.73 18.09 20.93 16.91 19.23 15.73 18.59 13.96 18.61 11.27 20.21 9.84 22.77Z M45.82 22.56 46.06 27.86 46.82 30.22 48.97 31.4 51.22 30.81 52.84 28.82 54.18 25.51 54.02 23.2 52.91 20.79 49.89 19.1 47.54 18.95 46.36 19.79Z M2.55 50.83 2.77 51.93 3.95 52.34 8.66 52.5 9.65 52.01 9.63 48.48 10.68 44.94 13.23 40.82 16.39 37.88 16.32 36.93 15.01 36.7 12.64 37.29 8.66 39.63 6.9 41.21 3.95 45.48Z M48.27 37.88 52.48 42.59 53.52 44.35 53.53 50.83 54.02 52.33 55.19 52.79 60.7 52.6 60.96 51.42 59.78 49.07 59.32 45.64 57.01 42 51.07 37.66 49.3 37.22 48.64 37.29Z\"/>\n  <path fill=\"url(#queue-flex-g3)\" fill-rule=\"evenodd\" d=\"M23.94 16.67 24.15 19.62 25.74 23.41 27.04 24.92 28.69 25.28 29.16 24.92 25.68 20.79 26.33 15.09 26.92 14.74 28.1 14.91 28.63 14.32 28.31 12.55 28.69 11.79 35.03 11.96 36.04 14.91 35.55 17.85 36.24 20.79 35.63 23.15 34.04 24.33 33.98 25.51 35.27 25.51 38.21 23.15 38.87 19.03 38.7 13.15 37.79 11.37 35.17 9 32.22 8.51 28.69 8.97 27.51 9.6 25.3 11.96 24 15.49Z M29.57 14.91 32.22 17.52 32.81 17.63 33.09 17.26 33.6 14.91 32.81 13.42 31.04 13.36Z M11.04 22.56 11.61 24.28 13.96 22.01 14.55 22.09 16.32 24.61 16.91 24.64 17.59 21.97 16.85 20.21 15.14 19.45 12.2 20.42 11.35 21.38Z M46.56 21.97 47.21 24.92 46.89 27.86 47.26 29.63 48.71 30.69 50.48 30.36 51.85 29.04 52.77 26.68 52.92 23.15 52.52 21.38 51.66 20.52 48.13 19.43 46.95 20.13Z M47.81 24.92 49.3 22.19 49.89 22.32 51.47 24.33 50.74 27.86 49.89 28.73 48.24 27.86Z M10.98 25.51 12.14 29.04 13.11 30.22 15.14 30.62 16.69 29.63 17.1 28.45 16.91 26.23 16.5 27.86 15.14 28.97 13.96 29.29 12.38 27.86 11.61 24.74 11.02 24.81Z M6.97 43.18 7.22 43.77 8.92 44.35 9.27 42.59 11.02 41.87 12.2 39.67 14.02 39.05 14.87 37.88 13.29 37.88 11.61 39.46 9.29 40.23 7.44 42Z M50.53 39.05 52.25 40.89 54.02 42.01 55.19 43.92 56.37 44.46 56.71 43.77 56.37 42.56 54.6 41.56 52.68 39.64 51.07 38.77Z\"/>\n</svg>",
+  450: "<svg class=\"i\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\n  <defs>\n    <linearGradient id=\"queue-aram-g1\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#9f937c\"/>\n      <stop offset=\"1\" stop-color=\"#74694f\"/>\n    </linearGradient>\n    <linearGradient id=\"queue-aram-g2\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#cbbfa5\"/>\n      <stop offset=\"1\" stop-color=\"#a5997f\"/>\n    </linearGradient>\n    <linearGradient id=\"queue-aram-g3\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#e1d5ba\"/>\n      <stop offset=\"1\" stop-color=\"#bfb095\"/>\n    </linearGradient>\n  </defs>\n  <path fill=\"url(#queue-aram-g1)\" fill-rule=\"evenodd\" d=\"M3 58.9 3.8 61.35 5.65 62 15.54 59.86 20.04 57.04 29.75 48.39 36.55 43.06 39.73 39.74 41.93 36.65 55.09 24.64 57.9 21.82 59.41 19.54 60.11 17.49 60.41 8.23 61 4.52 60.29 2.66 58.79 2 52 3.44 44.58 3.55 40.87 5.2 27.21 21.82 24.16 24.91 16.77 30.9 9.91 37.89 9.31 39.12 9.36 41.59 8.73 44.07 6.27 47.6 3.84 52.72Z M21.45 13.17 21.79 14.4 22.95 15.42 25.42 15.94 28.24 13.17 28.62 11.32 27.28 10 23.82 10.08 21.98 11.32Z M10.24 50.86 11.4 47.77 16.28 40.36 28.51 27.95 40.87 13.3 43.96 11.58 48.29 10.85 50.14 11.27 52 12.66 52.88 14.4 52.88 16.88 50.1 21.82 47.05 25.27 42.34 29.24 32.84 39.25 26.04 44.88 24.19 45.33 22.95 47.46 20.8 49.63 19.25 50.55 14.3 52.97 12.45 53.36 10.8 52.72Z M10.02 21.82 11.21 24.58 11.83 25.04 12.95 24.91 14.04 21.82 16.01 19.97 16.27 18.73 14.92 17.81 12.45 18.12 10.98 19.35Z M19.49 44.68 19.62 45.3 20.48 45.83 24.19 45.28 24.81 44.07 26.98 42.21 43.35 23.71 44.15 21.82 43.69 20.58 42.73 20.18 40.87 20.37 37.78 22.82 22.41 39.74 20.44 42.21Z M52.43 37.89 53.23 39.45 55.09 39.68 56.1 37.89 55.82 36.03 55.09 35.23 53.85 35.07 52.87 36.03Z M30.25 55.81 31.02 57.66 33.46 59.02 34.69 59.12 43.35 53.31 44.84 51.48 45.75 47.77 45.98 45.3 45.2 42.67 43.96 41.88 42.11 42.31 41.6 44.07 42.09 46.54 41.92 47.77 37.78 53.43 36.55 54.13 34.08 53.34 32.22 53.52 30.59 54.57Z\"/>\n  <path fill=\"url(#queue-aram-g2)\" fill-rule=\"evenodd\" d=\"M3.43 60.13 4.41 61.37 5.65 61.4 14 59.52 15.75 58.9 19.7 56.43 29.13 48 35.07 43.45 41.24 36.65 57.07 21.82 58.79 19.43 59.37 17.49 59.73 7.61 60.39 4.52 60.03 2.98 58.79 2.52 55.7 3.66 52.61 4.2 43.96 4.47 40.87 6.23 26.99 23.06 10.51 37.89 10.04 39.12 10.13 42.21 4.95 51.48Z M22.14 13.17 22.34 14.29 22.95 14.99 24.81 15.33 27.28 12.98 27.65 11.32 26.66 10.52 24.34 10.7 22.62 11.93Z M9.22 52.1 10.19 49.01 15.77 39.74 30.99 24.25 40.26 13.2 43.35 11 45.82 10.32 49.52 10.29 52 11.95 53 13.17 53.6 15.02 52.87 18.73 47.45 25.53 42.68 29.85 32.84 40.32 21.1 50.37 14.3 54.11 12.45 54.68 10.59 54.46 9.52 53.34Z M10.5 21.82 11.21 24.18 11.83 24.94 12.45 25.01 13.33 21.82 15.71 19.35 15.81 18.73 14.92 18.1 13.07 18.61 10.98 20.58Z M19.75 45.3 23.15 44.07 29.07 38.5 42.73 23.58 43.62 21.82 43.35 20.59 41.38 20.58 38.4 23.27 21.1 42.21Z M52.84 38.5 53.1 39.12 53.85 39.41 55.09 39.11 55.85 37.89 55.72 36.03 54.47 35.53 53.85 35.84Z M38.76 54.57 39.64 54.72 41.49 53.9 43.56 52.1 44.58 50.6 45.49 45.3 45.02 43.45 43.96 42.35 42.9 42.83 42.62 43.45 43.11 45.92 42.91 47.77 39.02 53.3Z M30.83 55.81 31.6 57.29 34.08 58.66 35.87 57.66 37.01 55.81 32.84 54.44 31.6 54.69Z\"/>\n  <path fill=\"url(#queue-aram-g3)\" fill-rule=\"evenodd\" d=\"M8.72 57.66 9.7 58.28 13.68 58.27 19.25 55.58 27.9 48.02 33.87 43.45 40.82 36.03 54.03 23.67 56.82 19.97 58.18 11.96 57.88 8.23 59.41 5.61 59.41 3.72 58.79 3.41 57.56 3.86 55.87 5.75 57.36 7.61 57.47 10.08 56.94 11.92 54.47 10.33 53.85 10.16 53.29 10.7 54.64 14.4 54.07 18.73 53.46 19.97 52 21.11 48.29 25.78 42.11 31.5 36.55 38.15 22.34 50.59 16.85 53.95 14.92 55.93 9.51 57.04Z M5.75 52.72 6.27 54.55 6.89 54.64 9.07 49.63 13.68 41.37 14.31 38.5 16.77 36.97 29.13 25.23 39.64 12.69 42.11 10.32 43.35 9.69 46.44 9.21 52.61 9.6 55.09 6.2 54.47 5.79 52 6.07 43.96 5.7 41.49 6.76 25.6 25.53 11.81 37.89 11.13 42.21 6.89 49.38Z M22.97 13.17 23.57 14.43 24.81 14.44 26.13 13.17 26.69 11.93 26.04 11.25 24.81 11.35 23.57 12.11Z M21.03 43.45 21.1 44.09 22.34 43.74 26.04 40.56 40.87 24.94 42.72 22.44 42.73 21.51 41.91 21.2 40.26 22.31 34.39 29.24 26.04 37.67Z M4.57 59.52 5.03 60.23 6.48 59.52 7.3 57.66 6.89 56.62 6.27 56.34 5.65 56.97Z\"/>\n</svg>",
+  480: "<svg class=\"i\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\n  <defs>\n    <linearGradient id=\"queue-swiftplay-g1\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#9f937c\"/>\n      <stop offset=\"1\" stop-color=\"#74694f\"/>\n    </linearGradient>\n    <linearGradient id=\"queue-swiftplay-g2\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#cbbfa5\"/>\n      <stop offset=\"1\" stop-color=\"#a5997f\"/>\n    </linearGradient>\n    <linearGradient id=\"queue-swiftplay-g3\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#e1d5ba\"/>\n      <stop offset=\"1\" stop-color=\"#bfb095\"/>\n    </linearGradient>\n  </defs>\n  <path fill=\"url(#queue-swiftplay-g1)\" fill-rule=\"evenodd\" d=\"M2 4.23 3.2 9.57 6.09 16.08 10.44 20.93 20.65 30.28 23.19 32.95 23.54 34.29 22.12 36.81 17.44 40.84 16.11 41.41 15.44 41.4 14.29 40.3 13.44 36.33 12.77 35.82 10.76 35.71 9.43 36.43 8.76 37.66 8.65 40.3 11.3 44.31 11.35 45.65 10.33 47.65 8.09 49.41 5.42 52.69 4.52 55.66 3.03 58.34 3.63 60.34 5.42 60.9 10.76 58.38 16.78 53.52 19.45 52.15 22.79 52.5 25.46 54.09 25.88 52.99 23.66 49.65 23.61 46.98 27.46 42.4 30.14 40.8 31.47 41.02 34.97 42.97 38.82 46.56 39.84 48.32 40.1 50.99 40.82 52.01 44.16 52.94 50.18 56.03 52.18 58.15 56.19 60.74 59.53 61.88 60.99 61.68 61.57 59.67 60.86 57.37 58.19 52.56 53.38 45.65 53.65 42.97 55.39 39.63 54.87 37.63 53.52 36.73 52.18 36.62 49.51 39.96 47.5 40.18 42.83 36.08 40.95 32.95 42.48 30.28 44.75 28.28 47.99 24.27 57.85 14.92 60.2 10.14 62 4.23 61.53 2.69 59.53 2.12 54.09 2.89 49.19 5.57 39.29 17.59 37.48 18.93 33.48 23.59 32.14 24.03 29.84 22.93 15.44 6.91 12.1 4.45 10.1 3.46 4.09 2.3 2.51 2.89Z M25.44 10.91 25.95 12.25 26.8 12.69 32.81 14.29 36.67 12.91 37.6 11.58 36.82 9.7 34.81 9.09 30.14 9.79 26.8 9.34 26.13 9.6Z M37.32 54.33 37.75 55 38.82 55.34 39.33 55 39.47 53.66 38.15 53.14 37.4 53.66Z\"/>\n  <path fill=\"url(#queue-swiftplay-g2)\" fill-rule=\"evenodd\" d=\"M2.17 3.56 6.09 15.32 10.6 20.26 24.01 32.29 24.59 34.29 23.46 36.69 20.48 38.97 17.44 42.12 16.11 42.74 14.77 42.81 13.8 42.31 12.38 36.29 11.43 35.99 10.1 36.88 9.49 38.97 9.61 40.3 10.27 41.64 13.03 43.64 13.08 44.98 12.42 46.31 6.09 53.43 5.19 56.33 3.42 58.69 3.63 60.34 4.09 60.74 5.42 60.72 11.12 57.67 19.45 50.63 21.45 50.7 25.46 54.09 25.79 53.66 25.46 52.72 22.49 50.32 22.51 47.65 23.77 45.65 28.51 40.97 30.8 39.82 32.14 40.15 35.48 42.44 39.49 46.23 41.27 48.99 41.06 51.66 44.16 51.32 52.24 57.67 58.26 61.01 60.2 61.57 60.86 61.32 60.86 59.58 57.72 53.66 52.55 46.31 52.55 42.97 54.61 39.63 54.18 37.42 52.85 36.72 51.78 36.96 50.18 40.81 49.51 41.4 48.17 41.47 46.17 40.26 42.67 36.96 39.94 33.62 40.27 32.29 42.63 29.61 57.61 14.92 60.31 6.9 61.65 4.23 61.53 2.78 60.2 2.51 53.52 3.74 50.84 4.91 48.84 6.8 47.12 9.57 42.1 15.59 36.13 21.6 34.14 24.44 32.81 25.03 30.8 24.69 29.47 23.75 14.1 6.47 12.1 4.79 10.1 3.79 4.09 2.55 2.75 2.76Z M25.84 10.91 26.05 11.58 27.14 12.25 30.14 12.48 33.48 13.43 36.41 12.25 37.41 10.91 36.82 10.02 34.81 9.75 26.8 10.1 26.12 10.24Z M37.58 54.33 37.84 55 38.82 55.13 39.47 53.66 38.82 53.23 38.15 53.47Z\"/>\n  <path fill=\"url(#queue-swiftplay-g3)\" fill-rule=\"evenodd\" d=\"M2.82 4.23 3.45 5.57 5.42 7.36 7.07 5.57 6.4 4.23 4.75 3.32 3.42 3.21Z M56.57 5.57 57.52 7.41 58.19 7.42 60.2 5.41 60.76 4.23 60.55 3.56 58.79 3.56Z M9.68 5.57 10.57 6.9 13.44 9.36 14.3 9.57 14.07 8.24 12.77 6.67 10.76 5.44Z M5.81 8.91 6.62 14.25 10.1 17.99 10.76 17.59 8.41 14.92 7.43 8.95 6.09 7.95Z M53.24 16.92 53.52 17.57 54.18 17.22 57.29 14.25 57.6 12.25 56.86 11.04 55.81 12.25 55.14 14.92Z M10.38 39.63 10.76 41 12.1 41.31 12.32 38.3 11.63 36.96 10.67 37.63Z\"/>\n</svg>",
+  TOP: "<svg class=\"i\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\n  <defs>\n    <linearGradient id=\"role-top-g1\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#70684d\"/>\n      <stop offset=\"1\" stop-color=\"#484635\"/>\n    </linearGradient>\n    <linearGradient id=\"role-top-g2\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#f5d89a\"/>\n      <stop offset=\"1\" stop-color=\"#c09a58\"/>\n    </linearGradient>\n    <linearGradient id=\"role-top-g3\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#fff0ba\"/>\n      <stop offset=\"1\" stop-color=\"#e8c27d\"/>\n    </linearGradient>\n  </defs>\n  <path fill=\"url(#role-top-g1)\" fill-rule=\"evenodd\" d=\"M2.08 57.62 2.72 59.39 4.43 59.41 14.1 50.21 16.13 47.36 16 17.18 16.58 15.47 18.1 14.93 20.37 15.25 44.3 15.17 47.15 14.84 48.28 14.2 57.14 5.78 58.07 4.07 57.84 2.94 55.69 2.15 44.87 2 5.56 2.08 3.86 2.27 2.77 2.94 2.21 5.21Z M14.36 61.03 14.68 61.66 15.82 62 18.1 61.68 46.58 61.23 57.4 61.32 60.25 61.78 61.38 61.31 61.86 59.89 61.55 54.77 61.54 22.3 61.92 14.33 61.38 13.03 60.25 12.95 59.68 13.48 57.97 16.04 55.12 18.58 53.41 21.28 53.03 41.1 53.23 50.78 53.07 51.92 52.27 53.19 50.56 53.72 22.65 53.54 19.24 55.66 17.66 57.62 14.87 59.89Z M25.74 28 26.33 39.39 26.82 40.53 28.92 41.41 38.6 41.82 39.74 41.41 40.29 39.96 40.61 28.57 40.35 26.86 39.74 26.07 38.03 25.55 27.78 25.29 26.64 25.61 26.07 26.26Z\"/>\n  <path fill=\"url(#role-top-g2)\" fill-rule=\"evenodd\" d=\"M3.06 56.48 3.29 57.93 3.86 58.28 6.13 57.17 9.55 53.34 13.63 49.64 15.37 46.79 15.17 17.18 15.92 14.9 18.1 14.25 46.58 14.29 47.72 13.76 56.17 5.78 57.19 4.07 56.83 3.14 55.12 2.66 6.13 2.69 4.46 2.94 3.59 3.5 3.08 5.21 3.35 53.06Z\"/>\n  <path fill=\"url(#role-top-g3)\" fill-rule=\"evenodd\" d=\"M4.27 5.21 4.78 51.35 4.32 55.34 4.43 56.15 5 56.54 6.13 55.91 8.98 52.47 12.81 49.07 14.05 46.79 13.85 17.74 14.06 15.47 14.68 14.16 15.82 13.52 17.53 13.3 46.58 13.32 54.93 5.78 55.92 4.07 55.12 3.57 24.36 3.94 6.13 3.56 4.72 4.07Z\"/>\n</svg>",
+  JUNGLE: "<svg class=\"i\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\n  <defs>\n    <linearGradient id=\"role-jungle-g1\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#8d7a4a\"/>\n      <stop offset=\"1\" stop-color=\"#514937\"/>\n    </linearGradient>\n    <linearGradient id=\"role-jungle-g2\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#f5d89a\"/>\n      <stop offset=\"1\" stop-color=\"#c09a58\"/>\n    </linearGradient>\n    <linearGradient id=\"role-jungle-g3\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#fff0ba\"/>\n      <stop offset=\"1\" stop-color=\"#e8c27d\"/>\n    </linearGradient>\n  </defs>\n  <path fill=\"url(#role-jungle-g1)\" fill-rule=\"evenodd\" d=\"M5.44 21.51 5.67 22.63 9.65 27.63 11.86 34.31 13.92 44.89 14.71 47.11 22.83 52.76 29.29 58.8 31.17 61.29 32.84 62 33.96 61.83 34.9 59.91 35.65 51.56 35.51 46 34.53 37.65 30.31 24.85 26.72 18.33 25.85 15.95 21.63 8.16 18.93 4.31 16.71 2.24 15.59 2 15.04 2.33 14.61 3.71 16.15 6.34 17 8.71 18.33 10.38 19.1 13.17 20.65 16.5 22.45 34.31 21.71 34.39 20.6 33.48 16.63 28.19 8.33 20.96 6.69 20.34 5.59 20.96Z M34.6 24.85 36.74 34.75 37.85 35.96 38.97 35.9 40.26 33.2 42.02 21.51 46.9 9.27 49.16 4.82 49.44 3.15 48.98 2.46 47.87 2.26 46.2 2.88 43.66 6.49 35.18 22.07Z M40.92 50.45 41.19 51.83 41.75 52.47 43.42 52.5 46.76 48.22 50.31 44.89 53.43 31.63 55.6 25.97 58.55 21.51 58.56 20.4 58.07 19.84 56.77 19.75 55.02 20.4 50.1 25.3 46.05 30.42 43.66 36.54 42.86 40.44 41.59 43.22Z\"/>\n  <path fill=\"url(#role-jungle-g2)\" fill-rule=\"evenodd\" d=\"M6.62 22.07 9.75 26.52 11.76 31.53 15.18 46.56 23.38 52.45 28.07 56.57 31.73 60.45 33.4 60.59 34.1 59.35 34.71 55.46 34.79 46.56 34.16 40.43 32.2 32.64 29.59 25.41 23.49 12.61 18.93 5.33 16.71 3.66 16.15 3.44 15.8 4.26 20.69 14.84 22.15 20.96 22.83 29.86 23.55 34.31 23.38 35.43 22.83 35.93 21.71 35.67 15.6 28.19 10.03 23.07 7.25 21.44Z M35.49 24.3 37.04 33.76 37.77 34.87 38.41 35 38.97 34.61 39.57 33.2 40.31 25.97 41.49 20.96 46.51 8.71 48.1 5.93 48.53 4.26 47.87 3.2 46.48 3.71 43.97 7.18 37.36 19.29Z M41.45 50.45 41.75 51.56 42.3 51.93 43.4 51.56 49.62 44.33 53.21 29.86 55.5 24.85 57.47 22.07 57.33 20.68 55.66 20.79 52.88 23.21 48.57 28.19 46.42 31.53 42.2 44.33Z\"/>\n  <path fill=\"url(#role-jungle-g3)\" fill-rule=\"evenodd\" d=\"M36.6 24.85 37.47 31.53 37.85 32.88 38.41 33.06 38.94 31.53 39.31 25.97 39.89 23.18 44.11 12.05 45.54 9.27 45.66 7.04 44.35 8.16 38.3 19.29 36.78 23.18Z M10.31 25.41 12.81 30.97 13.37 34.11 14.82 38.21 15.55 44.89 16 46 21.16 49.41 29.21 56.02 31.73 58.53 32.29 58.82 32.84 58.48 33.46 55.46 33.58 46 31.66 34.87 29.5 28.07 27 22.07 22.89 13.17 20.04 8.6 19.49 8.29 19.24 8.71 19.49 10.18 21.34 14.28 23.7 22.63 24.7 35.43 24.43 37.09 23.94 37.53 22.83 37.62 21.16 36.94 17.82 32.1 12.81 26.39 11.14 25.31Z M42.59 49.89 42.86 50.34 44.53 48.75 48.43 43.71 49.54 40.02 50.15 35.98 51.35 33.2 52.25 29.3 54.82 24.3 54.98 23.74 54.55 23.21 52.88 24.27 49.54 28.36 47.07 32.64 46.16 36.54 44.53 40.18Z\"/>\n</svg>",
+  MIDDLE: "<svg class=\"i\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\n  <defs>\n    <linearGradient id=\"role-mid-g1\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#8d7a4a\"/>\n      <stop offset=\"1\" stop-color=\"#514937\"/>\n    </linearGradient>\n    <linearGradient id=\"role-mid-g2\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#f5d89a\"/>\n      <stop offset=\"1\" stop-color=\"#c09a58\"/>\n    </linearGradient>\n    <linearGradient id=\"role-mid-g3\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#fff0ba\"/>\n      <stop offset=\"1\" stop-color=\"#e8c27d\"/>\n    </linearGradient>\n  </defs>\n  <path fill=\"url(#role-mid-g1)\" fill-rule=\"evenodd\" d=\"M2 58.97 2.55 60.89 4.82 61.77 12.73 61.83 14.43 61.53 16.01 60.67 17.82 58.14 30.83 44.36 36.92 38.61 57.44 17.13 61.21 13.73 61.75 12.04 62 5.25 61.36 2.88 59.67 2.17 50.62 2.19 48.36 2.74 46.1 4.59 42.79 8.64 25.74 25.26 18.32 33.52 3.12 48.23 2.4 50.49Z M2.72 5.25 3.11 29.57 2.87 34.09 3.12 35.31 4.25 36.01 7.08 34.36 9.34 31.63 10.06 30.13 10.57 26.17 10.17 14.3 11.04 12.12 12.73 11.04 14.43 10.7 26.87 10.77 28.57 10.47 34.19 6.38 35.55 4.12 35.04 2.99 33.65 2.45 28 2.83 5.95 2.5 3.69 3 2.85 4.12Z M26.78 60.1 27.24 61.23 29.13 61.8 58.54 61.49 60.8 60.86 61.43 58.97 61.38 39.74 61.84 29.57 61.36 27.62 60.23 27.04 58.54 27.87 54.01 32.44 52.87 34.09 52.55 36.35 53.33 49.92 53.05 51.62 52.32 52.9 50.62 53.5 46.66 53.07 35.92 53.23 32.2 55.01Z\"/>\n  <path fill=\"url(#role-mid-g2)\" fill-rule=\"evenodd\" d=\"M3.04 34.65 3.69 35.88 4.82 35.85 7.08 33.98 9.69 30.7 10.16 27.87 10.03 13.73 10.98 11.47 12.17 10.72 14.43 10.27 28.57 10.22 30.26 9.21 34.88 5.25 35.45 4.12 34.91 2.99 33.09 2.68 30.26 3.07 5.38 3 3.69 3.5 3.16 5.25 3.36 31.83Z M2.14 59.53 2.55 60.83 4.25 61.65 12.73 61.7 15.02 60.67 46.62 27.87 61.07 13.73 61.64 12.04 61.65 5.25 61.39 3.55 60.92 2.99 59.67 2.56 49.49 2.63 48.36 3.1 46.1 5.06 18.39 33.57 3.12 48.39 2.46 50.49Z M26.79 60.1 27.26 61.23 28.57 61.55 58.54 61.47 60.8 60.85 61.38 58.97 61.23 31.83 61.61 29 60.97 27.3 60.23 27.1 59.1 27.71 54.35 32.96 53.33 34.65 53.47 50.49 53.07 52.18 52.32 53.06 50.62 53.52 46.66 53.1 35.9 53.31 32.38 55.01Z\"/>\n  <path fill=\"url(#role-mid-g3)\" fill-rule=\"evenodd\" d=\"M3.18 59.53 3.69 60.51 4.25 60.78 12.17 60.82 13.3 60.65 14.99 59.33 33.65 40.36 45.81 27.3 60.26 13.17 60.74 12.04 60.42 8.64 60.73 5.25 60.23 3.8 59.1 3.48 50.05 3.53 48.92 3.98 46.66 5.79 20.73 32.39 3.94 48.79 3.32 50.49Z\"/>\n</svg>",
+  BOTTOM: "<svg class=\"i\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\n  <defs>\n    <linearGradient id=\"role-bot-g1\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#70684d\"/>\n      <stop offset=\"1\" stop-color=\"#484635\"/>\n    </linearGradient>\n    <linearGradient id=\"role-bot-g2\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#f5d89a\"/>\n      <stop offset=\"1\" stop-color=\"#c09a58\"/>\n    </linearGradient>\n    <linearGradient id=\"role-bot-g3\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#fff0ba\"/>\n      <stop offset=\"1\" stop-color=\"#e8c27d\"/>\n    </linearGradient>\n  </defs>\n  <path fill=\"url(#role-bot-g1)\" fill-rule=\"evenodd\" d=\"M2.3 51.48 2.71 52.76 4.41 52.49 11.01 45.8 11.95 44.09 11.76 15.09 12.52 12.82 14.65 11.99 41.37 12.08 43.24 11.11 49.61 5.43 50.72 3.72 50.47 2.29 49.33 2.04 44.78 2.55 6.12 2 3.28 2.67 2.71 3.36 2.41 4.86Z M7.98 60.01 8.39 61.3 9.53 61.96 15.79 61.51 59 62 60.71 61.36 61.46 60.01 61.61 58.31 61.7 8.27 61.27 7.02 60.14 6.4 58.43 6.94 54.89 11.11 50.59 15.09 49.2 17.37 48.92 46.93 48.74 48.64 48.2 49.65 47.06 50.02 44.22 49.42 18.63 49.65 16.36 50.92 11.4 56.03 8.55 58.31Z M24.47 36.7 24.74 38.41 26.02 39.15 31.71 38.72 35.69 39.14 37.39 38.86 38.29 37.84 38.65 36.13 38.64 28.74 37.96 25.6 36.82 24.93 35.12 24.65 26.59 24.55 25.45 24.94 24.61 26.47Z\"/>\n  <path fill=\"url(#role-bot-g2)\" fill-rule=\"evenodd\" d=\"M8.97 60.01 9.53 60.82 10.67 61.04 14.65 60.72 58.43 61.07 60.14 60.54 60.86 58.31 61 9.41 60.68 7.7 59.57 7.28 58.43 7.87 55.22 11.68 51.04 15.64 49.91 17.94 49.74 47.5 49.43 49.21 48.76 50.21 47.06 50.69 41.94 50.4 18.63 50.54 16.84 51.48 12.37 56.09 9.67 58.31Z\"/>\n  <path fill=\"url(#role-bot-g3)\" fill-rule=\"evenodd\" d=\"M10.37 59.44 11.81 60.06 14.65 59.61 56.16 59.67 58.43 60.08 59.57 59.63 59.96 58.31 59.67 56.03 60.14 8.83 59.57 8.34 58.54 8.84 55.88 12.25 52.17 15.66 51.26 17.37 51.08 47.5 50.7 49.78 50.09 50.91 49.24 51.48 47.63 51.77 18.63 51.6 17.49 52.24 14.56 55.46 10.98 58.31Z M18.15 56.03 18.23 55.46 19.2 54.81 38.53 54.57 47.29 54.89 49.6 55.46 50.13 56.03 48.07 56.6 39.1 56.75 19.2 56.38Z\"/>\n</svg>",
+  UTILITY: "<svg class=\"i\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\n  <defs>\n    <linearGradient id=\"role-support-g1\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#8d7a4a\"/>\n      <stop offset=\"1\" stop-color=\"#514937\"/>\n    </linearGradient>\n    <linearGradient id=\"role-support-g2\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#f5d89a\"/>\n      <stop offset=\"1\" stop-color=\"#c09a58\"/>\n    </linearGradient>\n    <linearGradient id=\"role-support-g3\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#fff0ba\"/>\n      <stop offset=\"1\" stop-color=\"#e8c27d\"/>\n    </linearGradient>\n  </defs>\n  <path fill=\"url(#role-support-g1)\" fill-rule=\"evenodd\" d=\"M23.81 7.23 25.22 11.81 28.34 16.19 30.89 21.23 31.97 21.89 33 21.6 34.36 18.64 39.62 10.34 40.14 7.75 39.77 5.68 39.23 5.16 37.67 4.83 26.26 4.88 24.37 5.68Z M2 19.16 2.73 21.23 5 22.43 9.15 25.56 14.33 27.52 17.52 27.97 17.93 28.49 17.67 29.53 14.49 32.12 14.31 33.68 14.86 34.71 19.52 36.33 21.08 36.04 22.04 35.23 22.92 33.68 25.62 24.86 25.22 23.31 22.11 19.45 19.52 18.11 16.93 17.71 9.67 17.87 3.44 17.54 2.28 18.12Z M38.25 24.86 40.81 30.05 41.82 33.84 43.89 35.8 46.49 35.87 48.55 34.71 49.25 33.16 48.77 31.6 46.09 29.01 46.34 27.97 47.52 27.52 50.63 27.46 54.26 25.82 58.41 22.58 61.07 21.23 61.76 20.19 62 18.64 61.52 17.9 60.49 17.59 44.41 17.76 42.34 18.62 41.3 19.49 38.98 22.79Z M24.18 51.31 24.71 52.59 28.32 55.46 30.93 58.61 31.97 59.17 33 58.94 36.01 55.46 39.74 52.13 39.87 50.27 38.54 47.16 38.11 45.09 37.53 31.6 36.11 26.83 35.6 26.25 33.52 26.69 32.38 28.49 31.45 29.05 30.27 28.49 28.85 26.73 28.34 26.56 27.3 27.51 26.78 29.3 26.1 43.53Z\"/>\n  <path fill=\"url(#role-support-g2)\" fill-rule=\"evenodd\" d=\"M24.57 7.75 25.51 10.86 28.89 16.05 30.93 20.11 31.45 20.79 32.48 20.95 39.12 9.82 39.52 7.75 39.23 6.34 38.71 5.81 37.67 5.56 26.26 5.71 25.18 6.19Z M2.85 19.68 3.82 21.23 10.16 25.38 14.33 26.84 18.07 27.45 18.7 28.49 18.47 29.53 15.41 32.12 15.1 33.68 15.89 34.45 19 35.55 20.04 35.59 21.32 34.71 22.52 32.64 24.93 24.86 24.35 23.31 21.59 19.88 19.52 18.87 16.93 18.57 3.96 18.48 3.4 18.64Z M39.02 24.86 42.73 33.68 44.26 35.23 45.97 35.28 47.92 34.2 48.43 33.16 47.92 31.6 45.45 29.4 45.19 28.49 45.7 27.45 47 26.97 50.12 26.73 53.75 25.43 57.83 22.27 60.47 20.71 60.91 19.16 60.49 18.64 59.45 18.43 55.82 18.68 45.97 18.47 43.89 18.8 41.82 19.94 39.43 23.31Z M24.79 50.79 25.27 52.35 31.97 58.66 33 58.31 35.6 55.21 39.17 51.83 39.23 50.39 38.08 48.2 37.55 46.12 36.89 32.64 35.71 27.97 35.08 27.17 33.75 27.45 31.97 29.63 30.41 29.43 28.34 27.91 27.7 28.49 26.6 45.09Z\"/>\n  <path fill=\"url(#role-support-g3)\" fill-rule=\"evenodd\" d=\"M25.47 8.27 25.74 9.41 27.82 13.08 29.67 15.53 31.45 19.42 31.97 19.85 32.48 19.69 33.61 17.08 36.63 12.68 38.35 9.31 38.67 8.27 38.49 7.23 37.67 6.67 35.6 6.99 26.78 6.74 25.74 7.21Z M4.15 20.19 5 21.08 11.24 24.86 19 26.11 19.69 27.45 19.4 30.05 16.85 32.12 16.31 33.16 19.52 34.48 20.56 33.81 21.81 31.6 22.81 27.45 23.87 24.86 21.08 20.71 18.48 19.68 8.63 19.87 5 19.4 4.29 19.68Z M39.88 24.86 43.69 33.16 44.58 34.2 45.97 34.35 47.13 33.68 47.47 32.64 46.87 31.6 44.93 30.27 44.43 29.53 44.12 27.97 44.41 26.74 45.45 26.09 53.02 24.86 54.68 23.31 59.43 20.19 59.24 19.68 58.41 19.5 54.78 19.96 46.49 19.7 43.37 19.98 42.34 20.68 40.26 23.54Z M25.65 50.79 26.03 51.83 29.37 54.73 31.97 57.65 32.57 57.53 38.25 51.31 36.84 48.2 35.32 29.53 35.08 28.49 34.56 28.08 33.79 28.49 32.48 30.53 31.45 30.71 29.37 30.22 28.81 30.57 27.58 46.12 27.05 48.2Z M30.33 45.09 30.93 40.54 31.45 41.18 31.69 44.05 31.45 46.43 30.93 47.65 30.41 46.78Z\"/>\n</svg>",
+  FILL: "<svg class=\"i\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\n  <defs>\n    <linearGradient id=\"role-fill-g1\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#8d7a4a\"/>\n      <stop offset=\"1\" stop-color=\"#514937\"/>\n    </linearGradient>\n    <linearGradient id=\"role-fill-g2\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#f5d89a\"/>\n      <stop offset=\"1\" stop-color=\"#c09a58\"/>\n    </linearGradient>\n    <linearGradient id=\"role-fill-g3\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"64\" gradientUnits=\"userSpaceOnUse\">\n      <stop stop-color=\"#fff0ba\"/>\n      <stop offset=\"1\" stop-color=\"#e8c27d\"/>\n    </linearGradient>\n  </defs>\n  <path fill=\"url(#role-fill-g1)\" fill-rule=\"evenodd\" d=\"M23.83 13.26 24.97 17.4 28.83 23.9 29.49 26.85 29.36 38.67 27.53 43.4 26.93 47.53 25.45 51.67 25.17 54.03 25.48 55.25 30.21 61.42 31.98 62 33.88 61.12 37.17 57.58 38.49 55.21 37.02 44.58 35.23 40.44 34.51 37.49 34.91 33.35 34.68 26.26 35.14 23.9 39.11 16.81 39.66 13.25 39.07 11.73 35.46 7.36 33.59 3.22 32.57 2.3 31.39 2 29.89 2.63 28.79 6.17 24.81 10.9Z M4.16 33.35 4.8 35.16 7.17 36.35 12.17 39.85 14.26 40.38 17.78 39.85 22.53 37.67 25.79 35.72 26.53 33.94 25.48 31.21 21.35 28.83 19.57 28.34 15.44 28.1 9.85 28.63 5.55 30.99Z M38.52 33.35 39.14 35.72 42.02 37.96 45.57 38.9 50.89 39.09 53.25 38.59 55.61 37.5 59.16 34.81 59.84 32.76 59.45 31.58 56.8 30.31 55.02 28.73 53.84 28.22 44.98 28.15 42.32 28.63 39.71 30.4 38.86 31.58Z\"/>\n  <path fill=\"url(#role-fill-g2)\" fill-rule=\"evenodd\" d=\"M24.57 13.26 25.67 17.4 29.46 23.9 30 26.85 29.81 39.26 28.3 43.4 25.86 54.03 26.59 55.8 30.21 60.53 30.8 61.16 31.98 61.37 33.16 60.88 36.38 57.58 37.68 55.21 36.49 45.76 33.7 37.49 34.12 33.35 33.98 26.26 34.72 23.31 36.65 20.35 38.56 16.22 39.16 13.26 38.63 12.08 35.11 7.95 33.15 3.81 32.57 3.11 31.39 2.67 30.21 3.42 29.46 6.17 25.19 11.49Z M39 33.94 39.93 35.72 42.62 37.66 45.57 38.33 50.89 38.44 55.02 37.19 58.25 34.53 58.81 32.76 57.98 31.67 53.25 28.7 44.98 28.72 42.62 29.21 40.32 30.99 39.37 32.17Z M4.9 33.94 5.39 34.76 9.53 37.55 12.48 39.27 14.85 39.75 17.21 39.43 21.56 37.49 25.4 35.12 25.9 33.94 24.9 31.58 21.86 29.81 19.57 28.97 16.03 28.7 11.3 29.06 7.17 30.84 5.51 32.17Z\"/>\n  <path fill=\"url(#role-fill-g3)\" fill-rule=\"evenodd\" d=\"M25.43 13.26 26.42 16.81 30.36 23.9 31.13 35.72 30.12 42.21 27.14 54.03 30.84 59.94 31.98 60.48 36.12 56.44 36.67 55.21 35.65 47.53 32.39 36.9 33.19 33.94 33.04 26.85 33.41 24.49 34.33 22.13 36.12 19.58 38.38 13.86 37.98 12.67 34.44 8.54 32.57 4.6 31.39 3.76 30.7 4.4 29.76 7.36 26.07 11.77Z M6.03 33.35 6.57 34.43 8.35 35.26 10.11 36.9 14.85 38.68 20.75 36.9 24.3 34.88 25.05 33.94 24.8 32.76 23.43 31.58 20.16 30.36 17.21 29.81 11.3 30.36 7.17 31.85Z M39.87 33.35 40.25 34.74 43.21 36.97 50.89 37.36 53.84 36.86 57.33 33.94 57.55 33.35 56.8 32.2 53.84 30.11 52.07 29.58 43.8 29.89 40.84 31.83Z\"/>\n</svg>",
+};
+// each copy gets its own gradient ids: an id shared with a copy in a hidden view would paint nothing
+let iconSeq = 0;
+const icon = k => { const s = ICONS[k]; if (!s) return ''; const n = ++iconSeq; return s.replace(/id="([^"]+)"/g, `id="$1-${n}"`).replace(/url\(#([^)]+)\)/g, `url(#$1-${n})`); };
+function labelled(b, iconKey, text) { b.innerHTML = icon(iconKey) + '<span></span>'; b.lastChild.textContent = text; }
 const ROLES = [['TOP', 'Top'], ['JUNGLE', 'Jungle'], ['MIDDLE', 'Mid'], ['BOTTOM', 'Bot'], ['UTILITY', 'Support'], ['FILL', 'Fill']];
 function renderRoles(l) {
   const box = $('#roles');
@@ -460,9 +673,9 @@ function renderRoles(l) {
     row.className = 'role-row';
     row.innerHTML = `<div class="role-lbl">${label}</div><div class="role-btns"></div>`;
     for (const [id, name] of ROLES) {
-      if (slot === 'second' && id === l.firstRole) continue;
       const b = document.createElement('button');
-      b.textContent = name;
+      labelled(b, id, name);
+      if (slot === 'second' && id === l.firstRole) b.disabled = true;
       b.classList.toggle('on', id === (slot === 'first' ? l.firstRole : l.secondRole));
       b.onclick = () => {
         let first = l.firstRole, second = l.secondRole;
@@ -498,6 +711,7 @@ function render() {
   if (phase !== lastPhase) {
     if (phase === 'ReadyCheck') alertUser([400, 150, 400, 150, 400]);
     if (phase === 'ChampSelect') { lastTurnKey = ''; $('#search').value = ''; filterGrid(); }
+    if (lastPhase === 'ChampSelect') closeLoadout();
     if (phase === 'Lobby' || phase === 'None') renderQueues();
     // Say plainly when something ended without the user doing it.
     const backTo = phase === 'Matchmaking' ? 'you are back in queue' : (phase === 'Lobby' || phase === 'None') ? 'you are out of queue' : '';
@@ -589,9 +803,12 @@ function renderChampSelect() {
   $('#cs-done').classList.toggle('hidden', picking);
   const myChamp = cs.myTeam.find(p => p.isMe)?.championId;
   $('#cs-done-title').textContent = cs.locked && myChamp ? `Locked in: ${byId.get(myChamp)?.name || ''}` : 'Nothing to pick in this mode';
+  $('#cs-done-sub').textContent = 'Skins can be changed on the PC.';
+  paintLoadoutBar();
   paintGrid();
 }
 
+let timerTurn = '', timerMax = 0;
 // countdowns that tick between polls
 setInterval(() => {
   if (!state?.connected) return;
@@ -604,6 +821,10 @@ setInterval(() => {
   if (state.phase === 'ChampSelect' && state.champSelect) {
     // Rounded down, so the phone never shows more time than there really is.
     const left = Math.max(0, state.champSelect.timeLeftMs / 1000 - since);
+    const turn = `${state.champSelect.timerPhase}:${state.champSelect.turn?.id}:${state.champSelect.turn?.active}`;
+    if (turn !== timerTurn) { timerTurn = turn; timerMax = left; }
+    timerMax = Math.max(timerMax, left);
+    $('#cs-timer').style.setProperty('--p', timerMax ? (left / timerMax).toFixed(3) : 0);
     $('#cs-timer').textContent = Math.floor(left);
     $('#cs-timer').classList.toggle('warn', left < 6);
   }
@@ -632,7 +853,7 @@ async function poll() {
     render();
   } catch (e) {
     if (seq < shownSeq) return;
-    if (e.status === 401) { key = ''; localStorage.removeItem('lr-key'); show('pair'); }
+    if (e.status === 401) { key = ''; store.del('lr-key'); show('pair'); }
     else if (!state || Date.now() - lastOkAt > 10000) show('offline');
   } finally {
     paintConnection();
@@ -654,6 +875,179 @@ function paintConnection() {
 setInterval(paintConnection, 500);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(true); });
 
+// ---------- loadout: runes + summoner spells ----------
+const POS_LABEL = { top: 'Top', jungle: 'Jungle', middle: 'Mid', bottom: 'Bot', utility: 'Support' };
+function icoEl(src, cls = 'ico') {
+  const i = document.createElement('img');
+  i.className = cls; i.alt = '';
+  i.onerror = () => { i.style.visibility = 'hidden'; };
+  if (src) i.src = src; else i.style.visibility = 'hidden';
+  return i;
+}
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function txt(title, sub) {
+  const t = el('span', 'lo-txt');
+  t.append(el('b', '', title));
+  if (sub) t.append(el('small', '', sub));
+  return t;
+}
+
+// The bar in champ select: what the client currently has.
+function paintLoadoutBar() {
+  const cs = state?.champSelect;
+  if (!cs) return;
+  const ico = $('#lo-runes-ico'), src = cs.runePage?.keystone?.icon || '';
+  if (ico.dataset.src !== src) {
+    ico.dataset.src = src;
+    if (src) { ico.src = src; ico.style.visibility = ''; } else { ico.removeAttribute('src'); ico.style.visibility = 'hidden'; }
+  }
+  $('#lo-runes-name').textContent = cs.runePage?.name || '—';
+  const spells = (cs.spells || []).filter(Boolean);
+  const box = $('#lo-spells-ico'), key = spells.map(s => s.id).join();
+  if (box.dataset.key !== key) { box.dataset.key = key; box.replaceChildren(...spells.map(s => icoEl(s.icon, 'ico sq sm'))); }
+  $('#lo-spells-name').textContent = spells.map(s => s.name).join(' + ') || '—';
+}
+
+let loadout = null, loMode = null, spellSlot = 1;
+const loBusy = on => $('#lo-sheet').classList.toggle('busy', on);
+
+async function openLoadout(mode) {
+  loMode = mode;
+  $('#lo-sheet').classList.remove('hidden');
+  $('#lo-body').replaceChildren(el('p', '', 'Loading from the client…'));
+  try {
+    loadout = await api('GET', '/api/loadout', undefined, 8000);
+    if (loMode === mode) renderLoadout();
+  } catch (e) {
+    $('#lo-body').replaceChildren(el('p', '', e.noAnswer ? 'No answer from your PC.' : e.message), doneButton());
+  }
+}
+function closeLoadout() { loMode = null; loBusy(false); $('#lo-sheet').classList.add('hidden'); }
+function doneButton() { const b = el('button', 'btn', 'Done'); b.onclick = closeLoadout; return b; }
+
+function renderLoadout() {
+  const body = $('#lo-body');
+  body.replaceChildren();
+  if (loMode === 'spells') renderSpells(body); else renderRunes(body);
+  body.append(doneButton());
+}
+
+function renderSpells(body) {
+  const sp = loadout.spells;
+  const byId = new Map(sp.available.map(s => [s.id, s]));
+  body.append(el('h3', '', 'Summoner spells'), el('p', 'lo-sub', 'Tap D or F, then a spell'));
+  const slots = el('div', 'slots');
+  for (const [n, k, id] of [[1, 'D', sp.spell1Id], [2, 'F', sp.spell2Id]]) {
+    const s = byId.get(id);
+    const b = el('button', 'slot' + (spellSlot === n ? ' on' : ''));
+    b.append(el('span', 'key', k), icoEl(s?.icon, 'ico sq'), txt(s?.name || '—'));
+    b.onclick = () => { spellSlot = n; renderLoadout(); };
+    slots.append(b);
+  }
+  const grid = el('div', 'spell-grid');
+  for (const s of sp.available) {
+    const b = el('button', 'spell' + (s.id === sp.spell1Id || s.id === sp.spell2Id ? ' cur' : ''));
+    b.append(icoEl(s.icon, 'ico'), el('span', '', s.name));
+    b.onclick = () => chooseSpell(s.id);
+    grid.append(b);
+  }
+  body.append(slots, el('p', 'lo-sub', 'Spells'), grid);
+}
+
+async function chooseSpell(id) {
+  const sp = loadout.spells;
+  let [a, b] = [sp.spell1Id, sp.spell2Id];
+  // Like the client: choosing the spell that's in the other slot swaps them.
+  if (spellSlot === 1) { if (id === b) b = a; a = id; } else { if (id === a) a = b; b = id; }
+  if (a === sp.spell1Id && b === sp.spell2Id) return;
+  const name = x => sp.available.find(s => s.id === x)?.name || x;
+  loBusy(true);
+  try {
+    const r = await api('POST', '/api/spells', { spell1Id: a, spell2Id: b }, 8000);
+    sp.spell1Id = r.spell1Id; sp.spell2Id = r.spell2Id;
+    toast(`Spells set: ${name(a)} + ${name(b)} ✓`, true);
+  } catch (e) {
+    toast(e.noAnswer ? 'No answer from your PC — check the client to see if your spells changed' : e.message);
+  } finally {
+    loBusy(false);
+    if (loMode === 'spells') renderLoadout();
+    poll(true);
+  }
+}
+
+function runeRow(page, sub, isCurrent, onTap) {
+  const b = el('button', 'rune-row' + (isCurrent ? ' cur' : ''));
+  const trees = el('span', 'trees');
+  trees.append(icoEl(page.primary?.icon, 'ico sm'), icoEl(page.secondary?.icon, 'ico sm'));
+  b.append(icoEl(page.keystone?.icon, 'ico'), txt(page.name, sub), trees);
+  if (isCurrent) b.append(el('span', 'state', 'Active ✓'));
+  b.onclick = onTap;
+  return b;
+}
+
+function renderRunes(body) {
+  const r = loadout.runes;
+  body.append(el('h3', '', 'Runes'));
+  if (!r.championId) body.append(el('p', 'lo-sub', 'Hover or lock a champion to see recommended runes'));
+  else if (!r.recommended.length) body.append(el('p', 'lo-sub', `No recommended runes for ${r.championName || 'this champion'}`));
+  else {
+    body.append(el('p', 'lo-sub', `Recommended for ${r.championName}${POS_LABEL[r.position] ? ' · ' + POS_LABEL[r.position] : ''}`));
+    for (const rec of r.recommended) {
+      const sub = [rec.primary?.name, rec.secondary?.name].filter(Boolean).join(' + ');
+      body.append(runeRow({ ...rec, name: rec.keystone?.name || 'Recommended' }, sub, false, () => applyRecommended(rec.index)));
+    }
+  }
+  body.append(el('p', 'lo-sub', 'Your pages'));
+  for (const p of r.pages) {
+    const sub = [p.keystone?.name, p.editable ? '' : 'preset'].filter(Boolean).join(' · ');
+    body.append(runeRow(p, sub, p.id === r.currentId, () => p.id !== r.currentId && setRunePage(p.id)));
+  }
+}
+
+async function applyRecommended(index, overwritePageId) {
+  loBusy(true);
+  try {
+    const page = await api('POST', '/api/runes/recommended', { index, overwritePageId }, 12000);
+    toast(`Runes set: ${page.keystone?.name || page.name} ✓`, true);
+    closeLoadout();
+  } catch (e) {
+    loBusy(false);
+    // Every page slot is full: only replace one of the player's pages if they say so.
+    if (e.status === 409 && e.data?.needsOverwrite) {
+      if (confirm(`All your rune page slots are full.\n\nReplace your page "${e.data.pageName}" with these recommended runes?`)) {
+        return applyRecommended(index, e.data.pageId);
+      }
+      return toast('Nothing changed');
+    }
+    toast(e.noAnswer ? 'No answer from your PC — check the client to see if your runes changed' : e.message);
+  } finally {
+    poll(true);
+  }
+}
+
+async function setRunePage(pageId) {
+  loBusy(true);
+  try {
+    const page = await api('POST', '/api/runes/page', { pageId }, 8000);
+    toast(`Rune page: ${page.name} ✓`, true);
+    closeLoadout();
+  } catch (e) {
+    loBusy(false);
+    toast(e.noAnswer ? 'No answer from your PC — check the client to see if your page changed' : e.message);
+  } finally {
+    poll(true);
+  }
+}
+
+$('#lo-runes').onclick = () => openLoadout('runes');
+$('#lo-spells').onclick = () => openLoadout('spells');
+$('#lo-sheet').onclick = e => { if (e.target.id === 'lo-sheet' && !$('#lo-sheet').classList.contains('busy')) closeLoadout(); };
+
 // ---------- buttons ----------
 $('#accept-btn').onclick = () => act('/api/accept');
 $('#decline-btn').onclick = () => act('/api/decline');
@@ -665,11 +1059,11 @@ $('#close-sheet').onclick = () => $('#sheet').classList.add('hidden');
 $('#sheet').onclick = e => { if (e.target.id === 'sheet') $('#sheet').classList.add('hidden'); };
 $('#sw-accept').onclick = () => act('/api/settings', { autoAccept: !state?.autoAccept });
 $('#sw-lock').onclick = () => act('/api/settings', { autoLock: !state?.autoLock });
-$('#unpair-btn').onclick = () => { key = ''; localStorage.removeItem('lr-key'); $('#sheet').classList.add('hidden'); show('pair'); };
+$('#unpair-btn').onclick = () => { key = ''; store.del('lr-key'); $('#sheet').classList.add('hidden'); show('pair'); };
 $('#pair').onsubmit = e => {
   e.preventDefault();
   key = $('#pair-code').value.trim().toLowerCase();
-  localStorage.setItem('lr-key', key);
+  store.set('lr-key', key);
   poll(true);
 };
 

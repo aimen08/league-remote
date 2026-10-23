@@ -12,7 +12,9 @@ const root = __dirname;
 const dist = path.join(root, 'dist');
 const exe = path.join(dist, 'LeagueRemote.exe');
 const { version } = require('./package.json');
-const ASSETS = ['index.html', 'pair.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
+const ASSETS = ['index.html', 'pair.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png',
+  ...fs.readdirSync(path.join(__dirname, 'public', 'fonts')).filter(f => f.endsWith('.woff2')).map(f => `fonts/${f}`),
+  ...fs.readdirSync(path.join(__dirname, 'public', 'art')).filter(f => /\.(jpg|svg|webp)$/.test(f)).map(f => `art/${f}`)];
 
 (async () => {
   if (process.platform !== 'win32') throw new Error('Build on Windows to get a Windows .exe');
@@ -21,7 +23,7 @@ const ASSETS = ['index.html', 'pair.html', 'manifest.webmanifest', 'icon.svg', '
 
   // 1. Bundle the server and its one dependency (qrcode) into a single script.
   esbuild.buildSync({
-    entryPoints: [path.join(root, 'server.js')],
+    entryPoints: [path.join(root, 'main.js')], // main.js starts the tray copy, then server.js
     bundle: true, platform: 'node', target: 'node22', format: 'cjs',
     outfile: path.join(dist, 'bundle.js'),
     logLevel: 'warning',
@@ -33,7 +35,7 @@ const ASSETS = ['index.html', 'pair.html', 'manifest.webmanifest', 'icon.svg', '
     output: path.join(dist, 'sea-prep.blob'),
     disableExperimentalSEAWarning: true,
     useCodeCache: false,
-    assets: Object.fromEntries(ASSETS.map(f => [f, path.join(root, 'public', f)])),
+    assets: { ...Object.fromEntries(ASSETS.map(f => [f, path.join(root, 'public', f)])), 'icon.ico': path.join(root, 'assets', 'icon.ico') },
   };
   fs.writeFileSync(path.join(dist, 'sea-config.json'), JSON.stringify(seaConfig, null, 2));
   execFileSync(process.execPath, ['--experimental-sea-config', path.join(dist, 'sea-config.json')], { stdio: 'inherit' });
