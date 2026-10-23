@@ -289,6 +289,7 @@ let summoner = null;
 let champions = null;
 let iconCache = new Map();
 let lastAutoLockedAction = null;
+let clientAnswered = false;
 
 async function refresh() {
   const seq = ++refreshSeq;
@@ -297,22 +298,25 @@ async function refresh() {
     client = await findClient();
     if (!client) { setState({ connected: false }); return; }
     summoner = null; champions = null; iconCache = new Map();
-    console.log('Connected to the League client.');
   }
 
   let phase;
   try {
     phase = await lcuJson('GET', '/lol-gameflow/v1/gameflow-phase');
   } catch (e) {
-    if (!e.status) { // network error: client closed
-      console.log('League client closed.');
+    // No answer, or the wrong password (a stale lockfile): we are not connected.
+    if (!e.status || e.status === 401 || e.status === 403) {
+      if (clientAnswered) console.log('League client closed.');
+      clientAnswered = false;
       client = null;
       setState({ connected: false });
     } else {
-      setState({ connected: true, phase: 'Loading' });
+      setState({ connected: true, phase: 'Loading' }); // answering, but still starting up
     }
     return;
   }
+  // Only claim a connection once the client has actually answered.
+  if (!clientAnswered) { clientAnswered = true; console.log('Connected to the League client.'); }
 
   if (!summoner) {
     const s = await tryJson('/lol-summoner/v1/current-summoner');
