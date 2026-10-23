@@ -104,7 +104,7 @@ npm run icons      # re-render the icons from assets/icon.svg (outputs are commi
 
 ## Credits
 
-Fonts: [Cinzel](https://fonts.google.com/specimen/Cinzel) for titles, [Poppins](https://fonts.google.com/specimen/Poppins) for buttons and [Inter](https://fonts.google.com/specimen/Inter) for text (SIL Open Font License, licenses in `public/fonts`). The background landscape, hextech crystal and button art were generated for this project; the role, queue, logo and settings icons were traced to SVG from the approved design (sources in `assets/icons`). Champion, rune and spell images come from your own League client; demo mode uses [Community Dragon](https://communitydragon.org).
+Fonts: [Teko](https://fonts.google.com/specimen/Teko) for titles, [Poppins](https://fonts.google.com/specimen/Poppins) for buttons and [Inter](https://fonts.google.com/specimen/Inter) for text (SIL Open Font License, licenses in `public/fonts`). The background landscape, hextech crystal and button art were generated for this project; the role, queue, logo and settings icons were traced to SVG from the approved design (sources in `assets/icons`). Champion, rune and spell images come from your own League client; demo mode uses [Community Dragon](https://communitydragon.org).
 
 ## License
 

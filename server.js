@@ -642,7 +642,7 @@ const STATIC = {
   '/icon-512.png': ['icon-512.png', 'image/png'],
   '/apple-touch-icon.png': ['apple-touch-icon.png', 'image/png'],
 };
-const FONTS = ['cinzel-latin-600-normal', 'cinzel-latin-700-normal', 'poppins-latin-500-normal', 'poppins-latin-600-normal', 'poppins-latin-700-normal', 'inter-latin-400-normal', 'inter-latin-500-normal', 'inter-latin-600-normal', 'inter-latin-700-normal'];
+const FONTS = ['teko-latin-600-normal', 'teko-latin-700-normal', 'poppins-latin-500-normal', 'poppins-latin-600-normal', 'poppins-latin-700-normal', 'inter-latin-400-normal', 'inter-latin-500-normal', 'inter-latin-600-normal', 'inter-latin-700-normal'];
 for (const f of FONTS) STATIC[`/fonts/${f}.woff2`] = [`fonts/${f}.woff2`, 'font/woff2'];
 for (const f of ['bg.jpg', 'band.jpg']) STATIC[`/art/${f}`] = [`art/${f}`, 'image/jpeg'];
 STATIC['/art/crystal.webp'] = ['art/crystal.webp', 'image/webp'];
