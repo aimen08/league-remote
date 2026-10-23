@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Same design with thicker lines, for 16–32 px where thin details disappear. -->
+  <rect width="256" height="256" rx="48" fill="#0d1620"/>
+  <circle cx="128" cy="128" r="102" fill="none" stroke="#c8aa6e" stroke-width="24"/>
+  <rect x="84" y="52" width="88" height="152" rx="18" fill="#0b1520" stroke="#f0e6d2" stroke-width="20"/>
+  <path d="M102 130l20 20 34-40" fill="none" stroke="#2fe0d0" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

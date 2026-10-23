@@ -15,7 +15,7 @@ const { createConsoleUI } = require('./console-ui');
 let sea = null;
 try { sea = require('node:sea'); if (!sea.isSea()) sea = null; } catch { sea = null; }
 
-const PORT = Number(process.env.PORT) || 3000;
+let port = Number(process.env.PORT) || 3000; // may move to the next free port at startup
 const DATA_DIR = sea ? path.join(process.env.APPDATA || os.homedir(), 'LeagueRemote') : __dirname;
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const CONFIG_PATH = path.join(DATA_DIR, 'config.json');
@@ -433,6 +433,9 @@ const STATIC = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/manifest.webmanifest': ['manifest.webmanifest', 'application/manifest+json'],
   '/icon.svg': ['icon.svg', 'image/svg+xml'],
+  '/icon-192.png': ['icon-192.png', 'image/png'],
+  '/icon-512.png': ['icon-512.png', 'image/png'],
+  '/apple-touch-icon.png': ['apple-touch-icon.png', 'image/png'],
 };
 
 function send(res, status, body, type = 'application/json') {
@@ -462,7 +465,7 @@ function lanUrls() {
     .filter(i => i && i.family === 'IPv4' && !i.internal && !i.address.startsWith('169.254.'))
     .map(i => i.address)
     .sort((a, b) => Number(!/^(192\.168|10\.|172\.)/.test(a)) - Number(!/^(192\.168|10\.|172\.)/.test(b)))
-    .map(ip => `http://${ip}:${PORT}/#k=${config.key}`);
+    .map(ip => `http://${ip}:${port}/#k=${config.key}`);
 }
 
 // The last phone that polled, for the status shown in the console window.
@@ -519,7 +522,87 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '0.0.0.0', () => {
+// ---------- starting up ----------
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function listenOn(p) {
+  return new Promise((resolve, reject) => {
+    const onError = e => { server.off('listening', onListening); reject(e); };
+    const onListening = () => { server.off('error', onError); resolve(); };
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(p, '0.0.0.0');
+  });
+}
+
+// Is the program on this port another League Remote (any version)? Every version serves this title.
+function isLeagueRemoteOn(p) {
+  return new Promise(resolve => {
+    const req = http.get({ host: '127.0.0.1', port: p, path: '/', timeout: 1500 }, res => {
+      let body = '';
+      res.on('data', c => { if (body.length < 4000) body += c; });
+      res.on('end', () => resolve(body.includes('<title>League Remote</title>')));
+    });
+    req.on('timeout', () => req.destroy());
+    req.on('error', () => resolve(false));
+  });
+}
+
+// The process listening on a port, as { pid, name }. Matches netstat's address columns
+// (a listening socket's remote address is 0.0.0.0:0 or [::]:0), not its translated state word.
+function portOwner(p) {
+  return new Promise(resolve => {
+    if (process.platform !== 'win32') return resolve(null);
+    execFile('netstat', ['-ano'], { windowsHide: true, timeout: 5000 }, (_e, out = '') => {
+      const re = new RegExp(`^\\s*TCP\\s+\\S+:${p}\\s+(?:0\\.0\\.0\\.0:0|\\[::\\]:0)\\s+\\S+\\s+(\\d+)\\s*$`, 'i');
+      const pid = Number(out.split(/\r?\n/).map(l => re.exec(l)?.[1]).find(Boolean));
+      if (!pid) return resolve(null);
+      execFile('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], { windowsHide: true, timeout: 5000 }, (_e2, o2 = '') => {
+        resolve({ pid, name: /^"([^"]+)"/.exec(o2.trim())?.[1] || 'another app' });
+      });
+    });
+  });
+}
+
+async function start() {
+  const wanted = port;
+  try { return await listenOn(port); } catch (e) { if (e.code !== 'EADDRINUSE') throw e; }
+
+  if (await isLeagueRemoteOn(port)) {
+    // An older League Remote window: close it and take its place, so a paired phone keeps working.
+    const owner = await portOwner(port);
+    if (owner && owner.pid !== process.pid) {
+      try { process.kill(owner.pid); } catch {}
+      for (let i = 0; i < 20; i++) {
+        await sleep(250);
+        try {
+          await listenOn(port);
+          console.log('Closed the other League Remote window and took over.');
+          return;
+        } catch (e) { if (e.code !== 'EADDRINUSE') throw e; }
+      }
+    }
+    console.log(`Another League Remote on port ${port} could not be closed (running as admin?).`);
+  } else {
+    const owner = await portOwner(port);
+    console.log(`Port ${port} is used by ${owner?.name || 'another app'} — left it alone.`);
+  }
+
+  // Never close someone else's program: move to the next free port instead.
+  for (let p = wanted + 1; p <= wanted + 20; p++) {
+    try {
+      await listenOn(p);
+      port = p;
+      console.log(`Using port ${p} instead — scan the new QR code on your phone.`);
+      return;
+    } catch (e) { if (e.code !== 'EADDRINUSE') throw e; }
+  }
+  throw new Error(`Ports ${wanted}–${wanted + 20} are all in use.`);
+}
+
+start().then(onListening).catch(e => fatal(e.message));
+
+function onListening() {
   if (ui) {
     const tick = () => ui.update({
       urls: lanUrls(),
@@ -535,15 +618,10 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('  On your phone (same Wi-Fi), open:');
     for (const u of lanUrls()) console.log(`    ${u}`);
     console.log(`\n  Pairing code: ${config.key}`);
-    console.log(`  QR code to scan: http://localhost:${PORT}/pair\n`);
+    console.log(`  QR code to scan: http://localhost:${port}/pair\n`);
   }
   if (process.argv.includes('--open')) {
-    const url = `http://localhost:${PORT}/pair`;
+    const url = `http://localhost:${port}/pair`;
     exec(process.platform === 'win32' ? `start "" "${url}"` : `open "${url}"`);
   }
-});
-server.on('error', e => {
-  fatal(e.code === 'EADDRINUSE'
-    ? `Port ${PORT} is already in use — League Remote is probably already running in another window.`
-    : e.message);
-});
+}

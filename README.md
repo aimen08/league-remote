@@ -1,3 +1,5 @@
+<img src="public/icon-192.png" width="72" align="left" alt="">
+
 # League Remote
 
 **Accept your League of Legends queue, ban, pick and lock in your champion from your phone.** Queue up, go to the bathroom (or make food), and handle champ select from wherever you are in the house.
@@ -23,6 +25,8 @@
 > - **Firewall prompt**: tick **Private networks** and click **Allow**, or your phone can't connect.
 
 Keep the window open while you play. It shows a green dot when League is connected and another when your phone is connected.
+
+Opening League Remote again closes the old window and takes its place, so your phone stays paired. If a different program already uses port 3000, League Remote leaves that program alone, moves to the next free port, and shows a new QR code to scan.
 
 ## What you can do from your phone
 
@@ -71,11 +75,12 @@ npm install
 npm start          # run the server
 npm run demo       # try the phone app against a fake League client (no League needed)
 npm run build      # build dist/LeagueRemote.exe (Node single-executable application)
+npm run icons      # re-render the icons from assets/icon.svg (outputs are committed)
 ```
 
 | Setting | Default |
 |---|---|
-| `PORT` | `3000` |
+| `PORT` | `3000` (the next free port is used if another program has it) |
 | `LEAGUE_DIR` | `C:\Riot Games\League of Legends` (only used if the client runs as admin) |
 
 ## License

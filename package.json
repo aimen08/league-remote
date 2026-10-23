@@ -1,12 +1,13 @@
 {
   "name": "league-remote",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Accept League of Legends queue pops and pick/lock champions from your phone.",
   "private": true,
   "scripts": {
     "start": "node server.js",
     "demo": "node demo.js --open",
-    "build": "node build.js"
+    "build": "node build.js",
+    "icons": "node tools/make-icons.js"
   },
   "engines": {
     "node": ">=18"
@@ -15,7 +16,9 @@
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "esbuild": "^0.25.10",
-    "postject": "^1.0.0-alpha.6"
+    "postject": "^1.0.0-alpha.6",
+    "rcedit": "^4.0.1"
   }
 }

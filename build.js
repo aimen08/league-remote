@@ -6,11 +6,13 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const esbuild = require('esbuild');
 const { inject } = require('postject');
+const rcedit = require('rcedit');
 
 const root = __dirname;
 const dist = path.join(root, 'dist');
 const exe = path.join(dist, 'LeagueRemote.exe');
-const ASSETS = ['index.html', 'pair.html', 'manifest.webmanifest', 'icon.svg'];
+const { version } = require('./package.json');
+const ASSETS = ['index.html', 'pair.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
 (async () => {
   if (process.platform !== 'win32') throw new Error('Build on Windows to get a Windows .exe');
@@ -36,8 +38,21 @@ const ASSETS = ['index.html', 'pair.html', 'manifest.webmanifest', 'icon.svg'];
   fs.writeFileSync(path.join(dist, 'sea-config.json'), JSON.stringify(seaConfig, null, 2));
   execFileSync(process.execPath, ['--experimental-sea-config', path.join(dist, 'sea-config.json')], { stdio: 'inherit' });
 
-  // 3. Copy node.exe and inject the blob.
+  // 3. Copy node.exe, give it our icon and name (before injecting, which must come last), then inject the blob.
   fs.copyFileSync(process.execPath, exe);
+  await rcedit(exe, {
+    icon: path.join(root, 'assets', 'icon.ico'),
+    'file-version': version,
+    'product-version': version,
+    'version-string': {
+      ProductName: 'League Remote',
+      FileDescription: 'League Remote',
+      InternalName: 'LeagueRemote',
+      OriginalFilename: 'LeagueRemote.exe',
+      CompanyName: 'League Remote',
+      LegalCopyright: 'MIT License',
+    },
+  });
   await inject(exe, 'NODE_SEA_BLOB', fs.readFileSync(seaConfig.output), {
     sentinelFuse: 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2',
   });
