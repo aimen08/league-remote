@@ -8,7 +8,7 @@
   <img src="docs/promo.gif" width="720" alt="League Remote promo: queue from anywhere, accept, ban and pick, runes and spells, auto-lock">
 </p>
 
-<p align="center"><a href="docs/promo.mp4">▶ Watch the promo in full quality (1080p)</a> · <em>recorded in demo mode against a fake League client</em></p>
+<p align="center"><a href="docs/promo-15s.mp4">▶ Watch the 15-second promo (with music)</a> · <a href="docs/promo.mp4">full walkthrough (1080p)</a> · <em>recorded in demo mode against a fake League client</em></p>
 
 ## Download
 
